@@ -61,26 +61,32 @@ nothing is stored. Do not add real project data to it on that basis.
 
 ## Design and accessibility
 
-The interface uses a green design system driven entirely by CSS custom properties
-in one `:root` block — change a token there and the whole board follows.
+The interface uses a rose/pink design system driven entirely by CSS custom
+properties in one `:root` block — change a token there and the whole board follows.
 
-- **Green is the brand ramp, not the whole palette.** `--brand-700` (`#15803d`) is
-  the action colour at 5.0:1 behind white text. Priority stays functionally
-  colour-coded — red, amber, teal, grey — because four shades of green would be
-  indistinguishable at a glance.
+- **Pink is the brand ramp, not the whole palette.** `--brand-700` (`#be185d`) is
+  the action colour at 6.04:1 behind white text, and the neutrals carry a plum tint
+  so the greys sit with the pink instead of reading as a colder palette laid over
+  it. Priority stays functionally colour-coded — red, amber, teal, grey — because
+  four shades of pink would be indistinguishable at a glance, and Critical in
+  particular is pulled to a true red so it separates from the rose brand hue.
 - **Each lane has its own accent**, shown as a bar across the top of the column and
-  a swatch beside its heading, so a column is identifiable without reading it.
+  a swatch beside its heading, so a column is identifiable without reading it. Done
+  keeps a green accent on purpose: completion reads as green almost universally, and
+  a plum there would be hard to tell apart from In Progress.
 - **Colour is never the only signal.** Priority and status carry a text label, and
   an overdue card is marked by a red badge, a warning glyph *and* the word
   "Overdue" — it survives colour blindness and greyscale printing.
 - **Dragging is never the only way to move a card** (WCAG 2.2 *Dragging Movements*).
   The "Move ▸" control on each card opens a list of destination columns that works
   with a keyboard, a screen reader or a single tap.
-- **Contrast is measured, not assumed.** All 22 text/background pairs were computed
-  against WCAG thresholds in the browser; the audit caught five failures, including
-  a primary button at 3.3:1, and the tokens were darkened until every pair passed.
+- **Contrast is measured, not assumed.** Every text/background pair in the interface
+  is computed against WCAG thresholds in the browser whenever the palette changes —
+  25 pairs on the current theme, all passing. The check is worth keeping: on the
+  previous palette it caught five real failures, including a primary button at
+  3.3:1, which is not something the eye reliably notices.
 - Focus rings are a 2px perimeter with a white halo so they stay visible on pale
-  cards and on the dark green header alike, interactive targets are at least 24px,
+  cards and on the deep rose header alike, interactive targets are at least 24px,
   and `prefers-reduced-motion` drops the movement while keeping the state changes.
 
 ## Running it locally

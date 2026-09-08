@@ -40,7 +40,7 @@
 <!-- Inline data-URI favicon. Browsers auto-request /favicon.ico, which on a GitHub Pages
      *project* site resolves at the origin root (not /newrepo/) and would 404. Declaring the
      icon inline satisfies the request with no network round-trip and no external file. -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2314532d'/%3E%3Crect x='7' y='8' width='4' height='16' rx='1' fill='%23dcfce7'/%3E%3Crect x='14' y='8' width='4' height='11' rx='1' fill='%234ade80'/%3E%3Crect x='21' y='8' width='4' height='7' rx='1' fill='%2316a34a'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23831843'/%3E%3Crect x='7' y='8' width='4' height='16' rx='1' fill='%23fce7f3'/%3E%3Crect x='14' y='8' width='4' height='11' rx='1' fill='%23f9a8d4'/%3E%3Crect x='21' y='8' width='4' height='7' rx='1' fill='%23db2777'/%3E%3C/svg%3E">
 
 <!--
   UOB IT PMO — internal demo / training tool.
@@ -54,39 +54,43 @@
    1. DESIGN TOKENS
    ============================================================ */
 :root {
-  /* Green brand ramp (neutral — not a real brand mark).
-     --brand-700 is the action colour: 5.0:1 against white, so white label
-     text on a filled button clears WCAG AA for normal text. */
-  --brand-900: #14532d;
-  --brand-800: #166534;
-  --brand-700: #15803d;
-  --brand-600: #16a34a;
-  --brand-100: #dcfce7;
-  --brand-050: #f0fdf4;
+  /* Rose brand ramp (neutral — not a real brand mark).
+     --brand-700 is the action colour: 6.04:1 against white, so white label
+     text on a filled button clears WCAG AA comfortably. */
+  --brand-900: #831843;
+  --brand-800: #9d174d;
+  --brand-700: #be185d;
+  --brand-600: #db2777;
+  --brand-100: #fce7f3;
+  --brand-050: #fdf2f8;
 
-  --ink:      #17241c;
-  --ink-soft: #4a5b50;
-  /* Darkened from #6b7d72, which measured 4.37:1 on white and 3.67:1 on the
-     column background — both under the 4.5:1 minimum for this text size. */
-  --ink-mute: #55665b;
-  --line:     #cfe3d6;
+  /* Neutrals carry a plum tint so the greys sit with the pink rather than
+     reading as a colder, separate palette laid on top of it. */
+  --ink:      #24171e;
+  --ink-soft: #574651;
+  --ink-mute: #675763;
+  --line:     #edd3e0;
   --surface:  #ffffff;
-  --canvas:   #eaf3ed;
+  --canvas:   #f7edf1;
 
   /* Priority stays functionally colour-coded rather than shades of the brand:
-     four greens would be indistinguishable at a glance. Every priority also
-     carries a text label, so colour is never the only signal. */
-  --p-critical: #c0392b;
-  --p-high:     #8f5700; /* was #b26a08 — only 4.24:1 behind the white pill text */
+     four pinks would be indistinguishable at a glance, and Critical in
+     particular has to separate from the rose brand colour rather than blend
+     into it. Every priority also carries a text label, so colour is never the
+     only signal. */
+  --p-critical: #b91c1c; /* a true red, pulled away from the rose brand hue */
+  --p-high:     #8f5700;
   --p-medium:   #0f766e;
   --p-low:      #6b7787;
 
   /* Column accents. Each column gets its own hue so the eye can find a lane
-     without reading the heading; the heading text is still the real label. */
-  --col-Backlog:      #94a3b8;
-  --col-InProgress:   #16a34a;
-  --col-Blocked:      #b26a08;
-  --col-Done:         #14532d;
+     without reading the heading; the heading text is still the real label.
+     Done keeps a green accent deliberately — completion reads as green almost
+     universally, and a plum here would be hard to tell from In Progress. */
+  --col-Backlog:      #9c8b94;
+  --col-InProgress:   #db2777;
+  --col-Blocked:      #b45309;
+  --col-Done:         #15803d;
 
   /* Feedback */
   --ok:      #15803d;
@@ -97,8 +101,8 @@
   --err-bg:  #fdecea;
 
   /* Focus indicator: 2px minimum perimeter, paired with a white halo so it
-     stays visible on the dark green header as well as on pale surfaces. */
-  --focus: #14532d;
+     stays visible on the deep rose header as well as on pale surfaces. */
+  --focus: #831843;
 
   /* Spacing scale */
   --s-1: 4px;
@@ -110,8 +114,8 @@
 
   --radius: 8px;
   --radius-sm: 5px;
-  --shadow-1: 0 1px 2px rgba(20, 83, 45, .10), 0 1px 3px rgba(20, 83, 45, .06);
-  --shadow-2: 0 6px 20px rgba(20, 83, 45, .18);
+  --shadow-1: 0 1px 2px rgba(131, 24, 67, .10), 0 1px 3px rgba(131, 24, 67, .06);
+  --shadow-2: 0 6px 20px rgba(131, 24, 67, .18);
 
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
           "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -137,7 +141,7 @@ h1, h2, h3 { margin: 0; line-height: 1.25; }
 button { font: inherit; color: inherit; cursor: pointer; }
 
 /* A 2px perimeter plus a white halo, so the ring keeps its 3:1 contrast whether
-   it lands on a pale card, the mid-green canvas, or a filled green button. */
+   it lands on a pale card, the blush canvas, or a filled rose button. */
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
@@ -145,10 +149,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
   box-shadow: 0 0 0 4px rgba(255, 255, 255, .9);
 }
 
-/* The header is dark green; invert the ring there rather than lose it. */
+/* The header is deep rose; invert the ring there rather than lose it. */
 .app-header :focus-visible {
   outline-color: #ffffff;
-  box-shadow: 0 0 0 4px rgba(20, 83, 45, .55);
+  box-shadow: 0 0 0 4px rgba(131, 24, 67, .55);
 }
 
 /* Sticky column headers must never cover the control being focused. */
@@ -238,11 +242,13 @@ html { scroll-padding-top: 92px; }
   color: var(--brand-100);
 }
 .summary .s-value { font-size: 17px; font-weight: 700; }
-/* Opaque, not translucent: a see-through red over the dark green header
+/* Opaque, not translucent: a see-through red over the deep rose header
    composites to olive and stops reading as an alert. */
 .summary li.is-alert {
-  background: #b3261e;
-  border-color: #f3c2be;
+  /* Brighter than the #b3261e used against green: on the deep rose header a
+     dark red sits too close to the background to register as an alert. */
+  background: #dc2626;
+  border-color: #fecaca;
 }
 .summary li.is-alert .s-label { color: #ffe8e6; }
 
@@ -349,7 +355,7 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 }
 
 .column {
-  background: #e2eee6;
+  background: #f3e3ea;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   display: flex;
@@ -378,7 +384,7 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .column-header {
   padding: var(--s-3) var(--s-3) var(--s-2);
   border-bottom: 1px solid var(--line);
-  background: #e2eee6;
+  background: #f3e3ea;
   position: sticky;
   top: 0;
   z-index: 2;
