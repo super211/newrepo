@@ -38,11 +38,18 @@ jobs:
           # so the site works without visiting repository settings first.
           enablement: true
 
+      # Stage only what the site serves, so the published tree never carries
+      # .git or .github — the artifact is exactly the three files below.
+      - name: Stage site
+        run: |
+          mkdir -p _site
+          cp index.html 404.html .nojekyll _site/
+          ls -la _site
+
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Repo root: index.html, 404.html and .nojekyll.
-          path: .
+          path: _site
 
       - name: Deploy to GitHub Pages
         id: deployment

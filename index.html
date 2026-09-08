@@ -808,6 +808,11 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
    ============================================================ */
 const FORMSUBMIT_ENDPOINT = "https://formsubmit.co/ajax/YOUR_EMAIL@example.com";
 
+/* The endpoint above still carries the placeholder address until someone edits it.
+   While that is so there is nothing to post to, so the board skips the request
+   rather than firing one that is certain to fail. */
+const FORMSUBMIT_CONFIGURED = !/YOUR_EMAIL@example\.com/i.test(FORMSUBMIT_ENDPOINT);
+
 /* ============================================================
    2. CONSTANTS
    ============================================================ */
@@ -1417,6 +1422,12 @@ async function handleSubmit(event) {
   showToast("Task added", task.id + " — " + task.title, "ok");
   resetForm();
   closeModal();
+
+  if (!FORMSUBMIT_CONFIGURED) {
+    showToast("Email notification skipped",
+              "Put a real address in FORMSUBMIT_ENDPOINT to turn notifications on.", "info");
+    return;
+  }
 
   setSubmitting(true);
   try {
