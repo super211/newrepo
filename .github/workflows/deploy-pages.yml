@@ -1,21 +1,24 @@
 name: Deploy to GitHub Pages
 
 # Builds nothing — the site is static files at the repo root — and publishes
-# them to GitHub Pages via the Pages deployment API.
+# them to the gh-pages branch, which GitHub Pages serves.
+#
+# Why this branch, and not the Pages deployment API (actions/deploy-pages)?
+# That route needs the Pages site to already exist, and creating one through
+# the API requires repository administration rights that GITHUB_TOKEN cannot
+# be granted — every attempt failed with "Resource not accessible by
+# integration". Publishing to gh-pages needs only contents: write.
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-# Least privilege that still allows a Pages deployment:
-# id-token is required by actions/deploy-pages for its OIDC handshake.
+# The only privilege required: pushing the generated branch.
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
-# Never run two Pages deployments at once; let an in-flight deploy finish
-# rather than cancelling it half-published.
+# Never run two deployments at once; let an in-flight one finish rather than
+# cancelling it half-published.
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -23,34 +26,34 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-        with:
-          # Turn Pages on automatically and set its source to GitHub Actions,
-          # so the site works without visiting repository settings first.
-          enablement: true
-
-      # Stage only what the site serves, so the published tree never carries
-      # .git or .github — the artifact is exactly the three files below.
+      # Stage only what the site serves, so the published branch never carries
+      # .github or repository history. 404.html is optional — without it Pages
+      # falls back to its own error page — so copy it only when it is there.
       - name: Stage site
         run: |
           mkdir -p _site
-          cp index.html 404.html .nojekyll _site/
+          cp index.html .nojekyll _site/
+          if [ -f 404.html ]; then cp 404.html _site/; fi
           ls -la _site
 
-      - name: Upload site artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      # gh-pages is generated output, not history worth keeping, so each run
+      # replaces it with a single fresh commit.
+      - name: Publish to gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd _site
+          git init --quiet --initial-branch=gh-pages
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git commit --quiet -m "Publish ${GITHUB_SHA} to GitHub Pages"
+          git push --force --quiet \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            gh-pages
+          echo "Published to gh-pages."
