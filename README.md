@@ -14,6 +14,8 @@ with no build step, no framework and no dependencies — open the file and it ru
   date and status; overdue cards (past due and not Done) are flagged.
 - Filter the board by project, assignee or priority.
 - Move a card between columns, or delete it with a confirmation step.
+- A floating WhatsApp button in the bottom-right opens a panel of suggested
+  messages — see [WhatsApp quick contact](#whatsapp-quick-contact).
 - Ships with 8 fictional demo tasks so the board is never empty on first load.
   The names, projects and CVE reference in the seed data are invented — there is
   no real project or personnel data in this repository.
@@ -102,6 +104,39 @@ you prefer to serve it over HTTP:
 ```bash
 python -m http.server 8000   # then visit http://localhost:8000/
 ```
+
+## WhatsApp quick contact
+
+The floating button in the bottom-right opens a short list of suggested messages.
+Picking one opens WhatsApp with the text already written, ready to edit; nothing is
+sent until you press send there.
+
+The suggestions are **built from the board at the moment you open the panel**, not
+from a fixed list, so they quote real task ids, counts and dates:
+
+- *Chase N overdue tasks* — named after the oldest overdue card, with its due date.
+  Absent when nothing is overdue.
+- *Escalate a blocked item* — names the blocked task, who it sits with, and its
+  project. Absent when nothing is blocked.
+- *Ask for a status update* — counts what is in progress.
+- *Request a new task* — a blank pro-forma for the backlog.
+- *Request a board summary* — the live per-column counts.
+
+To send to a specific number, set the one constant near the top of the script block
+in `index.html` — digits only, full international format, no `+` or spaces:
+
+```js
+const WHATSAPP_NUMBER = "6591234567";
+```
+
+It ships empty on purpose: an invented number would send real strangers real
+messages. While it is empty the widget still works — the links open WhatsApp with
+the message pre-filled and let the sender choose the recipient, which is `wa.me`'s
+documented behaviour with no number in the path. The panel says so, rather than
+letting the picker surprise you after you have already left the page.
+
+Like the email address below, this number is not a secret but it is a real inbox in
+a public repository, so use one you are willing to publish.
 
 ## Configuration — email notifications
 

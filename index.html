@@ -647,7 +647,7 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(11, 37, 69, .55);
+  background: rgba(36, 23, 30, .58);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -723,7 +723,9 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .toast-region {
   position: fixed;
   right: var(--s-5);
-  bottom: var(--s-5);
+  /* Cleared above the floating WhatsApp button (24px offset + 56px button +
+     16px gap), which owns this corner permanently. */
+  bottom: 96px;
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
@@ -751,10 +753,138 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
   font-size: 12px;
   color: var(--ink-mute);
   text-align: center;
+  /* Keep the last line of the footer clear of the floating button. */
+  padding-bottom: 96px;
 }
 
 /* ============================================================
-   10. RESPONSIVE — columns stack below 768px
+   10. WHATSAPP QUICK-CONTACT WIDGET
+   ============================================================ */
+.wa-widget {
+  position: fixed;
+  right: var(--s-5);
+  bottom: var(--s-5);
+  z-index: 40;              /* above the board, below the modal backdrop (50) */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s-3);
+}
+
+/* 56px is the standard floating-action-button size and clears the 24px WCAG
+   target minimum with room to spare on touch. WhatsApp's darker brand green is
+   used rather than #25D366: the bright green puts the white glyph at only
+   1.98:1, well under the 3:1 required of a meaningful graphic. */
+.wa-fab {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: #128c7e;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-2);
+  transition: background .12s ease, transform .12s ease;
+}
+.wa-fab:hover { background: #0f7166; transform: translateY(-2px); }
+.wa-fab:active { transform: translateY(0); }
+.wa-fab svg { width: 30px; height: 30px; display: block; }
+
+/* The panel grows upward from the button, so on a short window it would run off
+   the top of the screen and take its own heading with it. Cap it to the space
+   actually available (button + offsets ~ 104px, plus breathing room) and let the
+   suggestion list scroll inside, so the title and close button always stay put. */
+.wa-panel {
+  width: min(320px, calc(100vw - 2 * var(--s-5)));
+  max-height: calc(100vh - 128px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-2);
+  padding: var(--s-4);
+}
+/* Required: the display:flex above outranks the `hidden` attribute's UA
+   display:none, so without this the panel is visible from page load. */
+.wa-panel[hidden] { display: none; }
+
+.wa-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+.wa-panel-head h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  color: var(--brand-900);
+}
+.wa-close {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  width: 26px;
+  height: 26px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--ink-mute);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.wa-close:hover { background: var(--brand-050); color: var(--brand-800); }
+
+.wa-hint {
+  margin: var(--s-2) 0 var(--s-3);
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.wa-suggestions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);   /* 8px keeps adjacent tap targets from crowding */
+  overflow-y: auto;  /* the part that gives when the panel is height-capped */
+  min-height: 0;     /* without this a flex child refuses to shrink and scroll */
+}
+.wa-suggestions a {
+  display: block;
+  padding: var(--s-2) var(--s-3);
+  min-height: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--brand-050);
+  color: var(--ink);
+  font-size: 12px;
+  text-decoration: none;
+}
+.wa-suggestions a:hover {
+  background: var(--brand-100);
+  border-color: var(--brand-600);
+}
+.wa-suggestions .wa-sug-label { display: block; font-weight: 650; }
+.wa-suggestions .wa-sug-preview {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-soft);
+}
+
+.wa-unconfigured {
+  margin: var(--s-3) 0 0;
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+
+/* ============================================================
+   11. RESPONSIVE — columns stack below 768px
    ============================================================ */
 @media (max-width: 767px) {
   .board { grid-template-columns: 1fr; padding: var(--s-4); }
@@ -762,6 +892,9 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
   .filters-inner { flex-direction: column; align-items: stretch; }
   .filter-status { margin-left: 0; }
   .toast-region { left: var(--s-4); right: var(--s-4); max-width: none; }
+  .wa-widget { right: var(--s-4); bottom: var(--s-4); }
+  /* Toasts share the bottom edge with the widget on a narrow screen. */
+  .toast-region { bottom: 84px; }
 }
 </style>
 </head>
@@ -914,6 +1047,36 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
   </div>
 </div>
 
+<!-- ============================================================
+     WHATSAPP QUICK-CONTACT WIDGET
+     The panel is populated from board state each time it opens, so the
+     suggested messages reflect what is actually on the board right now.
+     ============================================================ -->
+<div class="wa-widget">
+  <div class="wa-panel" id="waPanel" role="dialog" aria-labelledby="waPanelTitle" hidden>
+    <div class="wa-panel-head">
+      <h2 id="waPanelTitle">Message the PMO</h2>
+      <button type="button" class="wa-close" id="waCloseBtn"
+              aria-label="Close WhatsApp suggestions">&times;</button>
+    </div>
+    <p class="wa-hint">Pick a message to open in WhatsApp — you can edit it before sending.</p>
+    <ul class="wa-suggestions" id="waSuggestions"></ul>
+    <p class="wa-unconfigured" id="waUnconfigured" hidden>
+      No PMO number is set, so WhatsApp will ask you to pick the recipient.
+    </p>
+  </div>
+
+  <button type="button" class="wa-fab" id="waFab"
+          aria-expanded="false" aria-controls="waPanel"
+          aria-label="Message the PMO on WhatsApp">
+    <!-- Inline SVG rather than an <img>: the CSP allows img-src data: only, and
+         an inline glyph needs no network request and inherits currentColor. -->
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0 0 20.464 3.488"/>
+    </svg>
+  </button>
+</div>
+
 <!-- Toast region — announced politely to assistive technology -->
 <div class="toast-region" id="toastRegion" role="status" aria-live="polite" aria-atomic="false"></div>
 
@@ -944,6 +1107,18 @@ const FORMSUBMIT_ENDPOINT = "https://formsubmit.co/ajax/YOUR_EMAIL@example.com";
    While that is so there is nothing to post to, so the board skips the request
    rather than firing one that is certain to fail. */
 const FORMSUBMIT_CONFIGURED = !/YOUR_EMAIL@example\.com/i.test(FORMSUBMIT_ENDPOINT);
+
+/* WhatsApp quick-contact widget. Put the PMO's number here in full
+   international format, digits only — no "+", spaces or dashes.
+   For example "6591234567" for a Singapore number.
+
+   Left blank deliberately: an invented number would send real messages to
+   whoever actually owns it. While it is blank the widget still works — the
+   links open WhatsApp with the message pre-filled and let the sender pick the
+   recipient themselves, which is wa.me's documented no-recipient behaviour. */
+const WHATSAPP_NUMBER = "";
+
+const WHATSAPP_CONFIGURED = /^[0-9]{6,15}$/.test(WHATSAPP_NUMBER);
 
 /* ============================================================
    2. CONSTANTS
@@ -1083,6 +1258,12 @@ function nextTaskId() {
 
 function findTask(id) {
   return state.tasks.find(function (task) { return task.id === id; });
+}
+
+/* Single-line preview of a longer message, for the WhatsApp suggestion list. */
+function truncate(value, max) {
+  const text = String(value).replace(/\s+/g, " ").trim();
+  return text.length > max ? text.slice(0, max - 1) + "…" : text;
 }
 
 /* Task IDs are safe by construction, but quote them defensively for selectors. */
@@ -1667,7 +1848,125 @@ async function handleSubmit(event) {
 }
 
 /* ============================================================
-   12. MODAL
+   12. WHATSAPP QUICK-CONTACT WIDGET
+
+   Clicking the floating button opens a panel of suggested messages built
+   from the board as it stands at that moment — how many items are overdue,
+   what is blocked, who it is waiting on. Each suggestion is an ordinary
+   link to wa.me, so the browser opens it natively and nothing is ever sent
+   without the user pressing send inside WhatsApp.
+   ============================================================ */
+
+/* wa.me carries the message in a query parameter. With no number in the path
+   it opens WhatsApp and lets the sender choose the recipient, which is what
+   makes the widget useful before WHATSAPP_NUMBER is filled in. */
+function whatsappUrl(message) {
+  const base = WHATSAPP_CONFIGURED ? "https://wa.me/" + WHATSAPP_NUMBER : "https://wa.me/";
+  return base + "?text=" + encodeURIComponent(message);
+}
+
+/* Suggestions are derived from state, so they quote real ids, real counts and
+   real dates instead of generic filler. */
+function buildWhatsappSuggestions() {
+  const overdue = state.tasks.filter(isOverdue);
+  const blocked = state.tasks.filter(function (task) { return task.status === "Blocked"; });
+  const active = state.tasks.filter(function (task) { return task.status === "In Progress"; });
+  const suggestions = [];
+
+  if (overdue.length) {
+    const task = overdue[0];
+    suggestions.push({
+      label: overdue.length === 1 ? "Chase the overdue task"
+                                  : "Chase " + overdue.length + " overdue tasks",
+      message: "Hi, following up on " + overdue.length + " overdue " +
+        (overdue.length === 1 ? "item" : "items") + " on the IT PMO board, starting with " +
+        task.id + " (" + task.title + "), which was due " + formatDate(task.dueDate) +
+        ". Could I get an updated ETA?"
+    });
+  }
+
+  if (blocked.length) {
+    const task = blocked[0];
+    suggestions.push({
+      label: "Escalate a blocked item",
+      message: "Hi, " + task.id + " (" + task.title + ") is blocked with " +
+        task.assignee + " on " + task.project + ". Could you help unblock it, or " +
+        "point me to the right approver?"
+    });
+  }
+
+  if (active.length) {
+    suggestions.push({
+      label: "Ask for a status update",
+      message: "Hi, could I get a quick status update on the " + active.length +
+        " task" + (active.length === 1 ? "" : "s") + " currently in progress on the " +
+        "IT PMO board?"
+    });
+  }
+
+  suggestions.push({
+    label: "Request a new task",
+    message: "Hi, could you add a task to the IT PMO backlog?\n\n" +
+      "Title:\nProject:\nAssignee:\nPriority:\nDue date:"
+  });
+
+  suggestions.push({
+    label: "Request a board summary",
+    message: "Hi, could you send this week's IT PMO summary? The board currently shows " +
+      state.tasks.length + " tasks — " +
+      COLUMNS.map(function (column) {
+        return state.tasks.filter(function (task) {
+          return task.status === column.id;
+        }).length + " " + column.id;
+      }).join(", ") + "."
+  });
+
+  return suggestions;
+}
+
+function renderWhatsappSuggestions() {
+  const list = document.getElementById("waSuggestions");
+
+  replaceChildren(list, buildWhatsappSuggestions().map(function (suggestion) {
+    return el("li", null, [
+      el("a", {
+        href: whatsappUrl(suggestion.message),
+        target: "_blank",
+        /* noopener denies the new tab a handle back to this window; noreferrer
+           keeps this page's URL out of the request to WhatsApp. */
+        rel: "noopener noreferrer"
+      }, [
+        el("span", { class: "wa-sug-label", text: suggestion.label }),
+        el("span", { class: "wa-sug-preview", text: truncate(suggestion.message, 70) })
+      ])
+    ]);
+  }));
+}
+
+function isWhatsappPanelOpen() {
+  return !document.getElementById("waPanel").hidden;
+}
+
+function openWhatsappPanel() {
+  renderWhatsappSuggestions();
+  document.getElementById("waPanel").hidden = false;
+  document.getElementById("waFab").setAttribute("aria-expanded", "true");
+
+  const first = document.querySelector("#waSuggestions a");
+  if (first) first.focus();
+}
+
+function closeWhatsappPanel(returnFocus) {
+  if (!isWhatsappPanelOpen()) return;
+  document.getElementById("waPanel").hidden = true;
+
+  const fab = document.getElementById("waFab");
+  fab.setAttribute("aria-expanded", "false");
+  if (returnFocus) fab.focus();
+}
+
+/* ============================================================
+   13. MODAL
    ============================================================ */
 let lastFocusedElement = null;
 
@@ -1686,7 +1985,7 @@ function closeModal() {
 }
 
 /* ============================================================
-   13. EVENT WIRING
+   14. EVENT WIRING
    ============================================================ */
 function wireModal() {
   document.getElementById("openFormBtn").addEventListener("click", openModal);
@@ -1704,8 +2003,13 @@ function wireModal() {
   document.addEventListener("keydown", function (event) {
     if (event.key !== "Escape") return;
 
+    /* Innermost layer first: modal, then the WhatsApp panel, then card menus. */
     if (!document.getElementById("modalBackdrop").hidden) {
       closeModal();
+      return;
+    }
+    if (isWhatsappPanelOpen()) {
+      closeWhatsappPanel(true);
       return;
     }
     /* Escape also closes an open move menu or delete confirmation. */
@@ -1780,6 +2084,33 @@ function wireBoardActions() {
   });
 }
 
+/* The floating WhatsApp button and its suggestion panel. */
+function wireWhatsapp() {
+  const fab = document.getElementById("waFab");
+
+  fab.addEventListener("click", function () {
+    if (isWhatsappPanelOpen()) closeWhatsappPanel(true);
+    else openWhatsappPanel();
+  });
+
+  document.getElementById("waCloseBtn").addEventListener("click", function () {
+    closeWhatsappPanel(true);
+  });
+
+  /* Following a suggestion hands off to WhatsApp; the panel has done its job. */
+  document.getElementById("waSuggestions").addEventListener("click", function (event) {
+    if (event.target.closest("a")) closeWhatsappPanel(false);
+  });
+
+  /* A press anywhere outside the widget dismisses it. Focus is not returned to
+     the button here — the user is already on their way somewhere else. */
+  document.addEventListener("mousedown", function (event) {
+    if (!isWhatsappPanelOpen()) return;
+    if (event.target.closest(".wa-widget")) return;
+    closeWhatsappPanel(false);
+  });
+}
+
 /* Native HTML5 drag and drop between columns. */
 function wireDragAndDrop() {
   const board = document.getElementById("board");
@@ -1834,7 +2165,7 @@ function clearDropHighlights() {
 }
 
 /* ============================================================
-   14. INIT
+   15. INIT
    ============================================================ */
 function init() {
   populateFormSelects();
@@ -1845,6 +2176,12 @@ function init() {
   wireFilters();
   wireBoardActions();
   wireDragAndDrop();
+  wireWhatsapp();
+
+  /* Explain the recipient picker up front, rather than letting it surprise
+     the user after they have already left the page for WhatsApp. */
+  document.getElementById("waUnconfigured").hidden = WHATSAPP_CONFIGURED;
+
   renderBoard();
 }
 
