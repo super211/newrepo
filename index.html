@@ -1,0 +1,2191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!--
+  Content-Security-Policy, delivered as a meta tag because GitHub Pages serves
+  static files and cannot set response headers.
+
+  default-src 'none' is the important line: everything is denied unless listed
+  below, so a future edit cannot quietly pull in a third-party script, and an
+  injected <img>, <object> or <iframe> has nowhere to call home.
+
+  'unsafe-inline' is required for script-src and style-src because the app is a
+  single self-contained file with no build step, so there is no external bundle
+  to point 'self' at and no server to mint a per-response nonce. A hash would
+  pin the current script, but any later edit would silently blank the page — a
+  worse trade for a file meant to be opened and edited directly. The remaining
+  directives still cut off external loading and data exfiltration.
+
+  Two protections cannot be expressed here: frame-ancestors and
+  X-Content-Type-Options are ignored in a meta tag and need real response
+  headers. Behind a host that can set them, add both.
+-->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'none';
+  script-src 'unsafe-inline';
+  style-src 'unsafe-inline';
+  img-src data:;
+  connect-src https://formsubmit.co;
+  base-uri 'none';
+  form-action 'none'">
+
+<!-- No URL, and therefore no task title in a query string, ever reaches a third party. -->
+<meta name="referrer" content="no-referrer">
+
+<title>UOB IT PMO — Project Kanban</title>
+
+<!-- Inline data-URI favicon. Browsers auto-request /favicon.ico, which on a GitHub Pages
+     *project* site resolves at the origin root (not /newrepo/) and would 404. Declaring the
+     icon inline satisfies the request with no network round-trip and no external file. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23831843'/%3E%3Crect x='7' y='8' width='4' height='16' rx='1' fill='%23fce7f3'/%3E%3Crect x='14' y='8' width='4' height='11' rx='1' fill='%23f9a8d4'/%3E%3Crect x='21' y='8' width='4' height='7' rx='1' fill='%23db2777'/%3E%3C/svg%3E">
+
+<!--
+  UOB IT PMO — internal demo / training tool.
+  Vanilla HTML + CSS + JS. No frameworks, no build step, no external resources.
+  Open by double-clicking this file; no server required.
+  Board state is in-memory only — a refresh restores the seeded demo data.
+-->
+
+<style>
+/* ============================================================
+   1. DESIGN TOKENS
+   ============================================================ */
+:root {
+  /* Rose brand ramp (neutral — not a real brand mark).
+     --brand-700 is the action colour: 6.04:1 against white, so white label
+     text on a filled button clears WCAG AA comfortably. */
+  --brand-900: #831843;
+  --brand-800: #9d174d;
+  --brand-700: #be185d;
+  --brand-600: #db2777;
+  --brand-100: #fce7f3;
+  --brand-050: #fdf2f8;
+
+  /* Neutrals carry a plum tint so the greys sit with the pink rather than
+     reading as a colder, separate palette laid on top of it. */
+  --ink:      #24171e;
+  --ink-soft: #574651;
+  --ink-mute: #675763;
+  --line:     #edd3e0;
+  --surface:  #ffffff;
+  --canvas:   #f7edf1;
+
+  /* Priority stays functionally colour-coded rather than shades of the brand:
+     four pinks would be indistinguishable at a glance, and Critical in
+     particular has to separate from the rose brand colour rather than blend
+     into it. Every priority also carries a text label, so colour is never the
+     only signal. */
+  --p-critical: #b91c1c; /* a true red, pulled away from the rose brand hue */
+  --p-high:     #8f5700;
+  --p-medium:   #0f766e;
+  --p-low:      #6b7787;
+
+  /* Column accents. Each column gets its own hue so the eye can find a lane
+     without reading the heading; the heading text is still the real label.
+     Done keeps a green accent deliberately — completion reads as green almost
+     universally, and a plum here would be hard to tell from In Progress. */
+  --col-Backlog:      #9c8b94;
+  --col-InProgress:   #db2777;
+  --col-Blocked:      #b45309;
+  --col-Done:         #15803d;
+
+  /* Feedback */
+  --ok:      #15803d;
+  --ok-bg:   #dcfce7;
+  --warn:    #9a5c00;
+  --warn-bg: #fdf1dd;
+  --err:     #b3261e;
+  --err-bg:  #fdecea;
+
+  /* Focus indicator: 2px minimum perimeter, paired with a white halo so it
+     stays visible on the deep rose header as well as on pale surfaces. */
+  --focus: #831843;
+
+  /* Spacing scale */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+
+  --radius: 8px;
+  --radius-sm: 5px;
+  --shadow-1: 0 1px 2px rgba(131, 24, 67, .10), 0 1px 3px rgba(131, 24, 67, .06);
+  --shadow-2: 0 6px 20px rgba(131, 24, 67, .18);
+
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+          "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+/* ============================================================
+   2. BASE
+   ============================================================ */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--canvas);
+}
+
+h1, h2, h3 { margin: 0; line-height: 1.25; }
+
+button { font: inherit; color: inherit; cursor: pointer; }
+
+/* A 2px perimeter plus a white halo, so the ring keeps its 3:1 contrast whether
+   it lands on a pale card, the blush canvas, or a filled rose button. */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 3px;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, .9);
+}
+
+/* The header is deep rose; invert the ring there rather than lose it. */
+.app-header :focus-visible {
+  outline-color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(131, 24, 67, .55);
+}
+
+/* Sticky column headers must never cover the control being focused. */
+html { scroll-padding-top: 92px; }
+
+/* Honour a reduced-motion preference: keep state changes, drop the movement. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================
+   3. HEADER / WORDMARK / SUMMARY STRIP
+   ============================================================ */
+.app-header {
+  background: linear-gradient(180deg, var(--brand-900), var(--brand-800));
+  color: #fff;
+  padding: var(--s-4) var(--s-5);
+  box-shadow: var(--shadow-1);
+}
+
+.header-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4);
+  justify-content: space-between;
+}
+
+.wordmark {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: .3px;
+}
+.wordmark .mark-sub {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--brand-100);
+}
+.wordmark-rule {
+  width: 3px;
+  align-self: stretch;
+  min-height: 26px;
+  background: var(--brand-600);
+  border-radius: 2px;
+}
+
+.header-note {
+  margin: var(--s-2) 0 0;
+  font-size: 12px;
+  color: var(--brand-100);
+  max-width: 78ch;
+}
+
+/* Live summary strip */
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin: var(--s-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.summary li {
+  background: rgba(255, 255, 255, .10);
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: var(--radius-sm);
+  padding: var(--s-2) var(--s-3);
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  min-width: 106px;
+}
+.summary .s-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  color: var(--brand-100);
+}
+.summary .s-value { font-size: 17px; font-weight: 700; }
+/* Opaque, not translucent: a see-through red over the deep rose header
+   composites to olive and stops reading as an alert. */
+.summary li.is-alert {
+  /* Brighter than the #b3261e used against green: on the deep rose header a
+     dark red sits too close to the background to register as an alert. */
+  background: #dc2626;
+  border-color: #fecaca;
+}
+.summary li.is-alert .s-label { color: #ffe8e6; }
+
+/* Buttons */
+.btn {
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: var(--s-2) var(--s-4);
+  font-weight: 600;
+  /* brand-600 measured 3.30:1 behind white label text; brand-700 is 5.0:1. */
+  background: var(--brand-700);
+  color: #fff;
+  transition: background .12s ease, opacity .12s ease;
+}
+.btn:hover { background: var(--brand-800); }
+.btn:disabled { opacity: .65; cursor: progress; }
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--brand-800);
+  border-color: var(--line);
+}
+.btn-secondary:hover { background: var(--brand-050); }
+
+/* min-height 24px meets the WCAG target-size minimum; the 8px flex gap on the
+   containers below keeps adjacent targets from crowding each other. */
+.btn-ghost {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--s-1) var(--s-2);
+  min-height: 24px;
+  font-size: 12px;
+}
+.btn-ghost:hover {
+  background: var(--brand-050);
+  border-color: var(--brand-600);
+  color: var(--brand-800);
+}
+.btn-ghost:disabled { cursor: default; }
+
+/* ============================================================
+   4. FILTER BAR
+   ============================================================ */
+.filters {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  padding: var(--s-3) var(--s-5);
+}
+.filters-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s-3);
+}
+.filters h2 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  color: var(--ink-mute);
+  align-self: center;
+}
+.field-inline { display: flex; flex-direction: column; gap: var(--s-1); }
+.field-inline label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--ink-mute);
+  font-weight: 600;
+}
+
+input[type="text"], input[type="date"], select, textarea {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  min-width: 150px;
+}
+textarea { resize: vertical; min-height: 68px; width: 100%; }
+input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="true"] {
+  border-color: var(--err);
+  background: var(--err-bg);
+}
+
+.filter-status {
+  font-size: 12px;
+  color: var(--ink-mute);
+  margin: 0 0 0 auto;
+  align-self: center;
+}
+
+/* ============================================================
+   5. BOARD + COLUMNS
+   ============================================================ */
+.board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-4);
+  padding: var(--s-5);
+  align-items: start;
+}
+
+.column {
+  background: #f3e3ea;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+  overflow: hidden; /* keeps the accent bar inside the rounded corner */
+  transition: background .12s ease, border-color .12s ease, box-shadow .12s ease;
+}
+
+/* Per-lane accent bar across the top of each column. */
+.column::before {
+  content: "";
+  display: block;
+  height: 4px;
+  background: var(--col-accent, var(--brand-600));
+}
+
+/* Drop-target highlight */
+.column.is-dragover {
+  background: var(--brand-100);
+  border-color: var(--brand-600);
+  box-shadow: inset 0 0 0 2px var(--brand-600);
+}
+
+/* Sticky so the lane you are dropping into stays labelled on a long board. */
+.column-header {
+  padding: var(--s-3) var(--s-3) var(--s-2);
+  border-bottom: 1px solid var(--line);
+  background: #f3e3ea;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.column.is-dragover .column-header { background: var(--brand-100); }
+
+.col-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+.column-header h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  color: var(--brand-900);
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+/* Repeats the lane accent next to the label, for a second, non-positional cue. */
+.column-header h2::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--col-accent, var(--brand-600));
+  flex: none;
+}
+.count-badge {
+  background: var(--brand-800);
+  color: #fff;
+  border-radius: 999px;
+  min-width: 24px;
+  padding: 2px 8px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.col-hint { font-size: 11px; color: var(--ink-mute); margin: var(--s-1) 0 0; }
+
+.column-body {
+  padding: var(--s-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  flex: 1;
+}
+
+.empty-col {
+  border: 1px dashed var(--brand-600);
+  border-radius: var(--radius-sm);
+  padding: var(--s-5) var(--s-4);
+  margin: 0;
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 12px;
+  background: rgba(255, 255, 255, .6);
+}
+
+/* ============================================================
+   6. TASK CARDS
+   ============================================================ */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--p-medium);
+  border-radius: var(--radius-sm);
+  padding: var(--s-3);
+  box-shadow: var(--shadow-1);
+  cursor: grab;
+  transition: box-shadow .12s ease, transform .12s ease, border-color .12s ease;
+}
+/* Micro-interaction: the card lifts slightly, confirming it is draggable
+   before the drag starts. transform only — no layout is recalculated. */
+.card:hover {
+  box-shadow: var(--shadow-2);
+  transform: translateY(-1px);
+  border-color: var(--brand-600);
+}
+.card:active { cursor: grabbing; }
+.card.is-dragging { opacity: .45; transform: none; }
+
+/* Left border colour-codes priority (the pill repeats it as text) */
+.card.prio-Critical { border-left-color: var(--p-critical); }
+.card.prio-High     { border-left-color: var(--p-high); }
+.card.prio-Medium   { border-left-color: var(--p-medium); }
+.card.prio-Low      { border-left-color: var(--p-low); }
+
+.card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+.task-id {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+.card-top-right { display: flex; align-items: center; gap: var(--s-2); }
+
+.pill {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: #fff;
+  white-space: nowrap;
+}
+.pill-Critical { background: var(--p-critical); }
+.pill-High     { background: var(--p-high); }
+.pill-Medium   { background: var(--p-medium); }
+.pill-Low      { background: var(--p-low); }
+
+/* 26px square: clears the 24px WCAG target-size minimum for web. */
+.icon-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  width: 26px;
+  height: 26px;
+  line-height: 1;
+  font-size: 16px;
+  color: var(--ink-mute);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.icon-btn:hover { background: var(--err-bg); color: var(--err); border-color: var(--err); }
+
+.card-title {
+  font-size: 14px;
+  font-weight: 650;
+  margin: var(--s-2) 0 var(--s-1);
+}
+.card-desc {
+  margin: 0 0 var(--s-2);
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.card-meta {
+  margin: var(--s-2) 0 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px var(--s-2);
+  font-size: 12px;
+}
+.card-meta dt { color: var(--ink-mute); }
+.card-meta dd { margin: 0; color: var(--ink-soft); }
+
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+  margin-top: var(--s-2);
+}
+.tag {
+  font-size: 11px;
+  background: var(--brand-050);
+  border: 1px solid var(--brand-100);
+  color: var(--brand-800);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+/* Red plus a warning glyph plus the word "Overdue": three signals, so the
+   state survives colour blindness and greyscale printing alike. */
+.badge-overdue {
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--err-bg);
+  border: 1px solid #f3c2be;
+  color: var(--err);
+  border-radius: 999px;
+  padding: 1px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.badge-overdue::before {
+  content: "\26A0"; /* warning triangle */
+  font-size: 11px;
+  line-height: 1;
+}
+
+.card-actions {
+  margin-top: var(--s-3);
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+}
+
+/* Keyboard-accessible move menu */
+.move-menu {
+  margin-top: var(--s-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--brand-050);
+  padding: var(--s-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+}
+.move-menu .move-label {
+  width: 100%;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--ink-mute);
+  margin-bottom: var(--s-1);
+}
+.move-menu button[aria-current="true"] {
+  background: var(--brand-100);
+  border-color: var(--brand-600);
+  color: var(--brand-900);
+}
+
+/* Inline delete confirmation (deliberately not window.confirm) */
+.confirm-row {
+  margin-top: var(--s-2);
+  background: var(--err-bg);
+  border: 1px solid #f3c2be;
+  border-radius: var(--radius-sm);
+  padding: var(--s-2);
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: 12px;
+  color: var(--err);
+  font-weight: 600;
+}
+.confirm-row .btn-yes {
+  background: var(--err);
+  color: #fff;
+  border: 1px solid var(--err);
+  border-radius: var(--radius-sm);
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.confirm-row .btn-no {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+/* ============================================================
+   7. MODAL + ADD TASK FORM
+   ============================================================ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(36, 23, 30, .58);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--s-5);
+  overflow: auto;
+  z-index: 50;
+}
+.modal-backdrop[hidden] { display: none; }
+
+.modal {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-2);
+  width: min(660px, 100%);
+  margin: auto;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  border-bottom: 1px solid var(--line);
+}
+.modal-header h2 { font-size: 16px; color: var(--brand-900); }
+.modal-close {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  width: 28px;
+  height: 28px;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--ink-soft);
+}
+.modal-close:hover { background: var(--brand-050); }
+
+.form-grid {
+  padding: var(--s-5);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-4);
+}
+.field { display: flex; flex-direction: column; gap: var(--s-1); }
+.field.span-2 { grid-column: 1 / -1; }
+.field label { font-weight: 600; font-size: 12px; color: var(--ink-soft); }
+.field .req { color: var(--err); }
+.field .hint { font-size: 11px; color: var(--ink-mute); }
+.field input, .field select, .field textarea { width: 100%; min-width: 0; }
+
+.error-text { font-size: 12px; color: var(--err); font-weight: 600; }
+.error-text:empty { display: none; }
+
+.form-footer {
+  border-top: 1px solid var(--line);
+  padding: var(--s-4) var(--s-5);
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.form-footer .footer-note {
+  margin: 0 auto 0 0;
+  font-size: 11px;
+  color: var(--ink-mute);
+  max-width: 40ch;
+}
+
+/* ============================================================
+   8. TOASTS
+   ============================================================ */
+.toast-region {
+  position: fixed;
+  right: var(--s-5);
+  /* Cleared above the floating WhatsApp button (24px offset + 56px button +
+     16px gap), which owns this corner permanently. */
+  bottom: 96px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  z-index: 80;
+  max-width: min(360px, calc(100vw - 2 * var(--s-5)));
+}
+.toast {
+  border-radius: var(--radius-sm);
+  padding: var(--s-3) var(--s-4);
+  box-shadow: var(--shadow-2);
+  font-size: 13px;
+  border-left: 4px solid var(--ok);
+  background: var(--ok-bg);
+  color: #14532d;
+}
+.toast.is-warn { border-left-color: var(--warn); background: var(--warn-bg); color: #6b3f00; }
+.toast.is-info { border-left-color: var(--brand-600); background: var(--brand-050); color: var(--brand-900); }
+.toast strong { display: block; }
+
+/* ============================================================
+   9. FOOTER
+   ============================================================ */
+.app-footer {
+  padding: var(--s-4) var(--s-5) var(--s-6);
+  font-size: 12px;
+  color: var(--ink-mute);
+  text-align: center;
+  /* Keep the last line of the footer clear of the floating button. */
+  padding-bottom: 96px;
+}
+
+/* ============================================================
+   10. WHATSAPP QUICK-CONTACT WIDGET
+   ============================================================ */
+.wa-widget {
+  position: fixed;
+  right: var(--s-5);
+  bottom: var(--s-5);
+  z-index: 40;              /* above the board, below the modal backdrop (50) */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s-3);
+}
+
+/* 56px is the standard floating-action-button size and clears the 24px WCAG
+   target minimum with room to spare on touch. WhatsApp's darker brand green is
+   used rather than #25D366: the bright green puts the white glyph at only
+   1.98:1, well under the 3:1 required of a meaningful graphic. */
+.wa-fab {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: #128c7e;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-2);
+  transition: background .12s ease, transform .12s ease;
+}
+.wa-fab:hover { background: #0f7166; transform: translateY(-2px); }
+.wa-fab:active { transform: translateY(0); }
+.wa-fab svg { width: 30px; height: 30px; display: block; }
+
+/* The panel grows upward from the button, so on a short window it would run off
+   the top of the screen and take its own heading with it. Cap it to the space
+   actually available (button + offsets ~ 104px, plus breathing room) and let the
+   suggestion list scroll inside, so the title and close button always stay put. */
+.wa-panel {
+  width: min(320px, calc(100vw - 2 * var(--s-5)));
+  max-height: calc(100vh - 128px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-2);
+  padding: var(--s-4);
+}
+/* Required: the display:flex above outranks the `hidden` attribute's UA
+   display:none, so without this the panel is visible from page load. */
+.wa-panel[hidden] { display: none; }
+
+.wa-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+.wa-panel-head h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  color: var(--brand-900);
+}
+.wa-close {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  width: 26px;
+  height: 26px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--ink-mute);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.wa-close:hover { background: var(--brand-050); color: var(--brand-800); }
+
+.wa-hint {
+  margin: var(--s-2) 0 var(--s-3);
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.wa-suggestions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);   /* 8px keeps adjacent tap targets from crowding */
+  overflow-y: auto;  /* the part that gives when the panel is height-capped */
+  min-height: 0;     /* without this a flex child refuses to shrink and scroll */
+}
+.wa-suggestions a {
+  display: block;
+  padding: var(--s-2) var(--s-3);
+  min-height: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--brand-050);
+  color: var(--ink);
+  font-size: 12px;
+  text-decoration: none;
+}
+.wa-suggestions a:hover {
+  background: var(--brand-100);
+  border-color: var(--brand-600);
+}
+.wa-suggestions .wa-sug-label { display: block; font-weight: 650; }
+.wa-suggestions .wa-sug-preview {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-soft);
+}
+
+.wa-unconfigured {
+  margin: var(--s-3) 0 0;
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+
+/* ============================================================
+   11. RESPONSIVE — columns stack below 768px
+   ============================================================ */
+@media (max-width: 767px) {
+  .board { grid-template-columns: 1fr; padding: var(--s-4); }
+  .form-grid { grid-template-columns: 1fr; }
+  .filters-inner { flex-direction: column; align-items: stretch; }
+  .filter-status { margin-left: 0; }
+  .toast-region { left: var(--s-4); right: var(--s-4); max-width: none; }
+  .wa-widget { right: var(--s-4); bottom: var(--s-4); }
+  /* Toasts share the bottom edge with the widget on a narrow screen. */
+  .toast-region { bottom: 84px; }
+}
+</style>
+</head>
+
+<body>
+
+<!-- ============================================================
+     HEADER — wordmark, add-task action, live summary strip
+     ============================================================ -->
+<header class="app-header">
+  <div class="header-bar">
+    <div class="wordmark">
+      <span class="wordmark-rule" aria-hidden="true"></span>
+      <span>UOB IT PMO</span>
+      <span class="mark-sub">Project Kanban</span>
+    </div>
+    <button type="button" class="btn" id="openFormBtn" aria-haspopup="dialog">+ Add Task</button>
+  </div>
+
+  <p class="header-note">
+    Internal demo &amp; training tool — not an official system and not connected to production data.
+    <strong>Nothing is saved:</strong> the board lives in memory only, so refreshing the page resets it
+    to the seeded demo tasks.
+  </p>
+
+  <ul class="summary" id="summaryStrip" aria-label="Board summary"></ul>
+</header>
+
+<main>
+  <!-- ============================================================
+       FILTER BAR — pure client-side filtering over the task array
+       ============================================================ -->
+  <section class="filters" aria-labelledby="filtersHeading">
+    <div class="filters-inner">
+      <h2 id="filtersHeading">Filters</h2>
+
+      <div class="field-inline">
+        <label for="filterProject">Project / Workstream</label>
+        <select id="filterProject">
+          <option value="">All projects</option>
+        </select>
+      </div>
+
+      <div class="field-inline">
+        <label for="filterAssignee">Assignee contains</label>
+        <input type="text" id="filterAssignee" placeholder="e.g. Tan" maxlength="60" autocomplete="off">
+      </div>
+
+      <div class="field-inline">
+        <label for="filterPriority">Priority</label>
+        <select id="filterPriority">
+          <option value="">All priorities</option>
+        </select>
+      </div>
+
+      <button type="button" class="btn btn-secondary" id="clearFiltersBtn">Clear filters</button>
+
+      <p class="filter-status" id="filterStatus"></p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       KANBAN BOARD — four fixed columns, rendered from state
+       ============================================================ -->
+  <section class="board" id="board" aria-label="Kanban board"></section>
+</main>
+
+<footer class="app-footer">
+  UOB IT PMO Kanban — demo build. Drag cards between columns, or use the “Move ▸” control on each card
+  for keyboard-only navigation.
+</footer>
+
+<!-- ============================================================
+     ADD TASK MODAL
+     ============================================================ -->
+<div class="modal-backdrop" id="modalBackdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-header">
+      <h2 id="modalTitle">Add a new task</h2>
+      <button type="button" class="modal-close" id="closeFormBtn" aria-label="Close add task dialog">×</button>
+    </div>
+
+    <form id="taskForm" novalidate>
+      <div class="form-grid">
+        <div class="field span-2">
+          <label for="title">Task Title <span class="req" aria-hidden="true">*</span></label>
+          <input type="text" id="title" name="title" maxlength="80" required
+                 aria-describedby="titleHint titleError" autocomplete="off">
+          <span class="hint" id="titleHint">Required, max 80 characters.</span>
+          <span class="error-text" id="titleError"></span>
+        </div>
+
+        <div class="field span-2">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" maxlength="500"
+                    aria-describedby="descHint descError"></textarea>
+          <span class="hint" id="descHint">Optional, max 500 characters.</span>
+          <span class="error-text" id="descError"></span>
+        </div>
+
+        <div class="field">
+          <label for="project">Project / Workstream</label>
+          <select id="project" name="project" aria-describedby="projectError"></select>
+          <span class="error-text" id="projectError"></span>
+        </div>
+
+        <div class="field">
+          <label for="category">Category</label>
+          <select id="category" name="category" aria-describedby="categoryError"></select>
+          <span class="error-text" id="categoryError"></span>
+        </div>
+
+        <div class="field">
+          <label for="assignee">Assignee <span class="req" aria-hidden="true">*</span></label>
+          <input type="text" id="assignee" name="assignee" maxlength="60" required
+                 aria-describedby="assigneeHint assigneeError" autocomplete="off">
+          <span class="hint" id="assigneeHint">Required, max 60 characters.</span>
+          <span class="error-text" id="assigneeError"></span>
+        </div>
+
+        <div class="field">
+          <label for="priority">Priority</label>
+          <select id="priority" name="priority" aria-describedby="priorityError"></select>
+          <span class="error-text" id="priorityError"></span>
+        </div>
+
+        <div class="field">
+          <label for="dueDate">Due Date <span class="req" aria-hidden="true">*</span></label>
+          <input type="date" id="dueDate" name="dueDate" required
+                 aria-describedby="dueHint dueDateError">
+          <span class="hint" id="dueHint">Today or later.</span>
+          <span class="error-text" id="dueDateError"></span>
+        </div>
+
+        <div class="field">
+          <label for="status">Status</label>
+          <select id="status" name="status" aria-describedby="statusError"></select>
+          <span class="error-text" id="statusError"></span>
+        </div>
+      </div>
+
+      <div class="form-footer">
+        <p class="footer-note">
+          The card appears on the board immediately; the email notification is sent in parallel.
+        </p>
+        <button type="button" class="btn btn-secondary" id="cancelFormBtn">Cancel</button>
+        <button type="submit" class="btn" id="submitBtn">Add task</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================
+     WHATSAPP QUICK-CONTACT WIDGET
+     The panel is populated from board state each time it opens, so the
+     suggested messages reflect what is actually on the board right now.
+     ============================================================ -->
+<div class="wa-widget">
+  <div class="wa-panel" id="waPanel" role="dialog" aria-labelledby="waPanelTitle" hidden>
+    <div class="wa-panel-head">
+      <h2 id="waPanelTitle">Message the PMO</h2>
+      <button type="button" class="wa-close" id="waCloseBtn"
+              aria-label="Close WhatsApp suggestions">&times;</button>
+    </div>
+    <p class="wa-hint">Pick a message to open in WhatsApp — you can edit it before sending.</p>
+    <ul class="wa-suggestions" id="waSuggestions"></ul>
+    <p class="wa-unconfigured" id="waUnconfigured" hidden>
+      No PMO number is set, so WhatsApp will ask you to pick the recipient.
+    </p>
+  </div>
+
+  <button type="button" class="wa-fab" id="waFab"
+          aria-expanded="false" aria-controls="waPanel"
+          aria-label="Message the PMO on WhatsApp">
+    <!-- Inline SVG rather than an <img>: the CSP allows img-src data: only, and
+         an inline glyph needs no network request and inherits currentColor. -->
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0 0 20.464 3.488"/>
+    </svg>
+  </button>
+</div>
+
+<!-- Toast region — announced politely to assistive technology -->
+<div class="toast-region" id="toastRegion" role="status" aria-live="polite" aria-atomic="false"></div>
+
+<!--
+  ============================================================================
+  FORMSUBMIT ACTIVATION NOTICE
+  The script below posts each new task to FormSubmit's AJAX JSON endpoint.
+  FormSubmit requires a ONE-TIME ACTIVATION per email address: the very first
+  submission triggers a confirmation email to that address, and nothing is
+  delivered until the link inside that email is clicked. Until then the request
+  may fail or return a "confirm your email" response — the board keeps working
+  either way. Swap the address in the FORMSUBMIT_ENDPOINT constant below; it is
+  the only place the email address appears.
+  ============================================================================
+-->
+<script>
+"use strict";
+
+/* ============================================================
+   1. CONFIG — change the email address here, and nowhere else.
+   FormSubmit needs a one-time activation: the first submission sends a
+   confirmation email to this address, and deliveries start only after the
+   link in it is clicked. See the HTML comment directly above this script.
+   ============================================================ */
+const FORMSUBMIT_ENDPOINT = "https://formsubmit.co/ajax/YOUR_EMAIL@example.com";
+
+/* The endpoint above still carries the placeholder address until someone edits it.
+   While that is so there is nothing to post to, so the board skips the request
+   rather than firing one that is certain to fail. */
+const FORMSUBMIT_CONFIGURED = !/YOUR_EMAIL@example\.com/i.test(FORMSUBMIT_ENDPOINT);
+
+/* WhatsApp quick-contact widget. Put the PMO's number here in full
+   international format, digits only — no "+", spaces or dashes.
+   For example "6591234567" for a Singapore number.
+
+   Left blank deliberately: an invented number would send real messages to
+   whoever actually owns it. While it is blank the widget still works — the
+   links open WhatsApp with the message pre-filled and let the sender pick the
+   recipient themselves, which is wa.me's documented no-recipient behaviour. */
+const WHATSAPP_NUMBER = "";
+
+const WHATSAPP_CONFIGURED = /^[0-9]{6,15}$/.test(WHATSAPP_NUMBER);
+
+/* ============================================================
+   2. CONSTANTS
+   ============================================================ */
+const COLUMNS = [
+  { id: "Backlog",     hint: "Logged, not yet scheduled",                    accent: "var(--col-Backlog)" },
+  { id: "In Progress", hint: "Actively being worked",                        accent: "var(--col-InProgress)" },
+  { id: "Blocked",     hint: "Waiting on a dependency, vendor or approval",  accent: "var(--col-Blocked)" },
+  { id: "Done",        hint: "Completed / closed",                           accent: "var(--col-Done)" }
+];
+
+const PROJECTS = [
+  "Core Banking Upgrade",
+  "Digital Channels",
+  "Cybersecurity Uplift",
+  "Data & Analytics",
+  "Infrastructure & Cloud",
+  "Vendor Management"
+];
+
+const CATEGORIES = [
+  "Application Development",
+  "Infrastructure",
+  "Cybersecurity",
+  "Data",
+  "Compliance",
+  "Vendor"
+];
+
+const PRIORITIES = ["Critical", "High", "Medium", "Low"];
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/* ============================================================
+   3. STATE — the single source of truth.
+   Memory only: no localStorage / sessionStorage / IndexedDB / cookies.
+   ============================================================ */
+const state = {
+  tasks: [],
+  filters: { project: "", assignee: "", priority: "" },
+  ui: { moveOpenId: null, confirmDeleteId: null },
+  seq: 0
+};
+
+/* ============================================================
+   4. SMALL HELPERS
+   ============================================================ */
+
+/* ------------------------------------------------------------------
+   DOM construction helpers.
+
+   Every render path builds nodes with createElement and sets text with
+   textContent. Nothing on the board is assembled as an HTML string, and
+   innerHTML is never assigned.
+
+   That removes the cross-site scripting sink class outright rather than
+   defending it. A task title of <img src=x onerror=alert(1)> has no route
+   to the HTML parser at all, so correctness no longer depends on an
+   escaping helper being right — and staying right through every later
+   edit, in every context it happens to be used.
+   ------------------------------------------------------------------ */
+
+/* el("span", { class: "pill", text: "High" }) -> HTMLElement
+   Attribute values go through setAttribute and text through textContent;
+   neither parses markup. `dataset` sets data-* attributes, `text` sets the
+   text content, and a null/undefined/false value skips the attribute. */
+function el(tag, attrs, children) {
+  const node = document.createElement(tag);
+
+  if (attrs) {
+    Object.keys(attrs).forEach(function (name) {
+      const value = attrs[name];
+      if (value === null || value === undefined || value === false) return;
+
+      if (name === "text") {
+        node.textContent = String(value);
+      } else if (name === "dataset") {
+        Object.keys(value).forEach(function (key) { node.dataset[key] = String(value[key]); });
+      } else if (value === true) {
+        node.setAttribute(name, "");
+      } else {
+        node.setAttribute(name, String(value));
+      }
+    });
+  }
+
+  (children || []).forEach(function (child) {
+    if (child === null || child === undefined || child === false) return;
+    node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
+  });
+
+  return node;
+}
+
+/* Swap a container's children for a fresh set, without parsing HTML. */
+function replaceChildren(parent, nodes) {
+  parent.textContent = "";
+  nodes.forEach(function (node) { if (node) parent.appendChild(node); });
+}
+
+/* Local-date ISO string (yyyy-mm-dd) — avoids the UTC drift of toISOString(). */
+function toISODate(date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return date.getFullYear() + "-" + month + "-" + day;
+}
+
+function todayISO() {
+  return toISODate(new Date());
+}
+
+/* Seed dates are relative to today so the demo always shows overdue + upcoming. */
+function daysFromToday(offset) {
+  const date = new Date();
+  date.setDate(date.getDate() + offset);
+  return toISODate(date);
+}
+
+/* Locale-independent display date, e.g. "08 Sep 2026". */
+function formatDate(iso) {
+  const parts = String(iso).split("-");
+  if (parts.length !== 3) return iso;
+  const month = MONTHS[Number(parts[1]) - 1] || parts[1];
+  return parts[2] + " " + month + " " + parts[0];
+}
+
+/* ISO date strings compare correctly as plain strings. */
+function isOverdue(task) {
+  return task.status !== "Done" && task.dueDate < todayISO();
+}
+
+function nextTaskId() {
+  state.seq += 1;
+  return "UOB-ITPM-" + String(state.seq).padStart(4, "0");
+}
+
+function findTask(id) {
+  return state.tasks.find(function (task) { return task.id === id; });
+}
+
+/* Single-line preview of a longer message, for the WhatsApp suggestion list. */
+function truncate(value, max) {
+  const text = String(value).replace(/\s+/g, " ").trim();
+  return text.length > max ? text.slice(0, max - 1) + "…" : text;
+}
+
+/* Task IDs are safe by construction, but quote them defensively for selectors. */
+function cssEscape(value) {
+  return String(value).replace(/["\\]/g, "\\$&");
+}
+
+/* ============================================================
+   5. SEED DATA — 8 demo tasks spread across the four columns
+   ============================================================ */
+function seedTasks() {
+  const seeds = [
+    {
+      title: "Migrate FX pricing service to AWS",
+      description: "Lift-and-shift of the pricing engine into the regional VPC, with a blue/green cutover and a rollback runbook.",
+      project: "Infrastructure & Cloud",
+      category: "Infrastructure",
+      assignee: "Priya Nair",
+      priority: "High",
+      dueDate: daysFromToday(12),
+      status: "In Progress"
+    },
+    {
+      title: "Patch CVE-2025-4863 on branch teller VDI",
+      description: "Emergency patch cycle across 1,400 virtual desktops in the branch network. Vendor advisory rated critical.",
+      project: "Cybersecurity Uplift",
+      category: "Cybersecurity",
+      assignee: "Marcus Tan",
+      priority: "Critical",
+      dueDate: daysFromToday(-2),
+      status: "In Progress"
+    },
+    {
+      title: "UAT sign-off for mobile onboarding release 4.2",
+      description: "Business UAT is complete; waiting on the Retail Ops head for formal sign-off before the release train closes.",
+      project: "Digital Channels",
+      category: "Application Development",
+      assignee: "Jocelyn Lim",
+      priority: "High",
+      dueDate: daysFromToday(5),
+      status: "Blocked"
+    },
+    {
+      title: "Core banking batch window reduction — design review",
+      description: "Target is a 90-minute reduction in the nightly batch window ahead of the R7 upgrade.",
+      project: "Core Banking Upgrade",
+      category: "Application Development",
+      assignee: "Rahul Menon",
+      priority: "Medium",
+      dueDate: daysFromToday(25),
+      status: "Backlog"
+    },
+    {
+      title: "Vendor SLA renegotiation — ATM maintenance",
+      description: "Response-time SLA breached twice this quarter. Awaiting revised commercial terms from the supplier.",
+      project: "Vendor Management",
+      category: "Vendor",
+      assignee: "Wei Ling Chua",
+      priority: "Medium",
+      dueDate: daysFromToday(9),
+      status: "Blocked"
+    },
+    {
+      title: "Customer 360 data lineage documentation",
+      description: "Document source-to-target lineage for the 42 attributes feeding the customer 360 view.",
+      project: "Data & Analytics",
+      category: "Data",
+      assignee: "Daniel Ong",
+      priority: "Low",
+      dueDate: daysFromToday(40),
+      status: "Backlog"
+    },
+    {
+      title: "Technology risk gap assessment — remediation plan",
+      description: "Remediation plan covering the 11 findings raised in the technology risk management gap assessment.",
+      project: "Cybersecurity Uplift",
+      category: "Compliance",
+      assignee: "Farah Ismail",
+      priority: "High",
+      dueDate: daysFromToday(-6),
+      status: "Done"
+    },
+    {
+      title: "Decommission legacy cheque imaging servers",
+      description: "Four end-of-life servers powered down, data archived, and rack space released back to the data centre team.",
+      project: "Infrastructure & Cloud",
+      category: "Infrastructure",
+      assignee: "Kenneth Goh",
+      priority: "Low",
+      dueDate: daysFromToday(-14),
+      status: "Done"
+    }
+  ];
+
+  state.tasks = seeds.map(function (seed) {
+    return Object.assign({ id: nextTaskId() }, seed);
+  });
+}
+
+/* ============================================================
+   6. FILTERING — pure, client-side, over the in-memory array
+   ============================================================ */
+function applyFilters(tasks) {
+  const filters = state.filters;
+  const assignee = filters.assignee.trim().toLowerCase();
+
+  return tasks.filter(function (task) {
+    if (filters.project && task.project !== filters.project) return false;
+    if (filters.priority && task.priority !== filters.priority) return false;
+    if (assignee && task.assignee.toLowerCase().indexOf(assignee) === -1) return false;
+    return true;
+  });
+}
+
+function hasActiveFilters() {
+  const filters = state.filters;
+  return Boolean(filters.project || filters.priority || filters.assignee.trim());
+}
+
+/* ============================================================
+   7. RENDERING — every card is drawn from state; nothing outside
+   renderBoard()/renderCard() mutates card contents.
+   ============================================================ */
+function renderCard(task) {
+  const id = task.id;
+  const moveOpen = state.ui.moveOpenId === id;
+  const confirming = state.ui.confirmDeleteId === id;
+
+  const parts = [];
+
+  parts.push(el("div", { class: "card-top" }, [
+    el("span", { class: "task-id", text: id }),
+    el("div", { class: "card-top-right" }, [
+      el("span", { class: "pill pill-" + task.priority, text: task.priority }),
+      el("button", {
+        type: "button",
+        class: "icon-btn",
+        dataset: { action: "ask-delete", id: id },
+        "aria-label": "Delete task " + id,
+        text: "×"
+      })
+    ])
+  ]));
+
+  parts.push(el("h3", { class: "card-title", text: task.title }));
+
+  if (task.description) {
+    parts.push(el("p", { class: "card-desc", text: task.description }));
+  }
+
+  parts.push(el("dl", { class: "card-meta" }, [
+    el("dt", { text: "Project" }),  el("dd", { text: task.project }),
+    el("dt", { text: "Assignee" }), el("dd", { text: task.assignee }),
+    el("dt", { text: "Due" }),      el("dd", { text: formatDate(task.dueDate) })
+  ]));
+
+  parts.push(el("div", { class: "card-tags" }, [
+    el("span", { class: "tag", text: task.category }),
+    isOverdue(task) ? el("span", { class: "badge-overdue", text: "Overdue" }) : null
+  ]));
+
+  /* WCAG 2.2 "Dragging Movements": drag is never the only way to move a card.
+     This button opens a list of destination columns that works with a keyboard,
+     a screen reader, or a single tap. */
+  parts.push(el("div", { class: "card-actions" }, [
+    el("button", {
+      type: "button",
+      class: "btn-ghost",
+      dataset: { action: "toggle-move", id: id },
+      "aria-expanded": moveOpen ? "true" : "false",
+      "aria-label": "Move task " + id + " to another column",
+      text: "Move ▸"
+    })
+  ]));
+
+  if (moveOpen) {
+    parts.push(el("div", {
+      class: "move-menu",
+      role: "group",
+      "aria-label": "Move " + id + " to a column"
+    }, [el("span", { class: "move-label", text: "Move to" })].concat(
+      COLUMNS.map(function (column) {
+        const isCurrent = column.id === task.status;
+        return el("button", {
+          type: "button",
+          class: "btn-ghost",
+          dataset: { action: "move", id: id, target: column.id },
+          "aria-current": isCurrent ? "true" : null,
+          disabled: isCurrent,
+          "aria-label": "Move " + id + " to " + column.id,
+          text: column.id
+        });
+      })
+    )));
+  }
+
+  if (confirming) {
+    parts.push(el("div", { class: "confirm-row" }, [
+      el("span", { text: "Delete?" }),
+      el("button", {
+        type: "button", class: "btn-yes",
+        dataset: { action: "delete-yes", id: id },
+        "aria-label": "Confirm delete of " + id, text: "Yes"
+      }),
+      el("button", {
+        type: "button", class: "btn-no",
+        dataset: { action: "delete-no", id: id },
+        "aria-label": "Cancel delete of " + id, text: "No"
+      })
+    ]));
+  }
+
+  return el("article", {
+    class: "card prio-" + task.priority,
+    draggable: "true",
+    dataset: { id: id },
+    "aria-label": "Task " + id + ": " + task.title
+  }, parts);
+}
+
+function renderBoard() {
+  const board = document.getElementById("board");
+  const visible = applyFilters(state.tasks);
+  const filtered = hasActiveFilters();
+
+  const columns = COLUMNS.map(function (column) {
+    const cards = visible.filter(function (task) { return task.status === column.id; });
+    const total = state.tasks.filter(function (task) { return task.status === column.id; }).length;
+    const countLabel = filtered ? cards.length + " / " + total : String(cards.length);
+
+    const body = cards.length
+      ? cards.map(renderCard)
+      : [el("p", {
+          class: "empty-col",
+          text: filtered ? "No tasks match the current filters." : "No tasks in this column."
+        })];
+
+    const section = el("section", {
+      class: "column",
+      dataset: { column: column.id },
+      "aria-label": column.id + " column"
+    }, [
+      el("div", { class: "column-header" }, [
+        el("div", { class: "col-title-row" }, [
+          el("h2", { text: column.id }),
+          el("span", {
+            class: "count-badge",
+            title: "Tasks shown in this column",
+            text: countLabel
+          })
+        ]),
+        el("p", { class: "col-hint", text: column.hint })
+      ]),
+      el("div", { class: "column-body" }, body)
+    ]);
+
+    /* Drives the lane accent bar and the swatch beside the heading. */
+    section.style.setProperty("--col-accent", column.accent);
+    return section;
+  });
+
+  replaceChildren(board, columns);
+
+  renderSummary();
+  renderFilterStatus();
+  restoreFocusAfterRender();
+}
+
+/* Live counters in the header. */
+function renderSummary() {
+  const strip = document.getElementById("summaryStrip");
+  const items = [{ label: "Total", value: state.tasks.length, alert: false }];
+
+  COLUMNS.forEach(function (column) {
+    items.push({
+      label: column.id,
+      value: state.tasks.filter(function (task) { return task.status === column.id; }).length,
+      alert: false
+    });
+  });
+
+  const overdueCount = state.tasks.filter(isOverdue).length;
+  items.push({ label: "Overdue", value: overdueCount, alert: overdueCount > 0 });
+
+  replaceChildren(strip, items.map(function (item) {
+    return el("li", { class: item.alert ? "is-alert" : null }, [
+      el("span", { class: "s-label", text: item.label }),
+      el("span", { class: "s-value", text: String(item.value) })
+    ]);
+  }));
+}
+
+function renderFilterStatus() {
+  const element = document.getElementById("filterStatus");
+  const shown = applyFilters(state.tasks).length;
+  element.textContent = hasActiveFilters()
+    ? "Showing " + shown + " of " + state.tasks.length + " tasks"
+    : "Showing all " + state.tasks.length + " tasks";
+}
+
+/* A re-render replaces the DOM, so re-focus whatever the user was operating. */
+function restoreFocusAfterRender() {
+  if (state.ui.confirmDeleteId) {
+    const yes = document.querySelector('[data-action="delete-yes"][data-id="' +
+      cssEscape(state.ui.confirmDeleteId) + '"]');
+    if (yes) yes.focus();
+    return;
+  }
+  if (state.ui.moveOpenId) {
+    const target = document.querySelector('.card[data-id="' +
+      cssEscape(state.ui.moveOpenId) + '"] .move-menu button:not([disabled])');
+    if (target) target.focus();
+  }
+}
+
+/* ============================================================
+   8. STATE MUTATIONS
+   ============================================================ */
+function addTask(task) {
+  state.tasks.unshift(task);
+  renderBoard();
+}
+
+function moveTask(id, targetStatus) {
+  const task = findTask(id);
+  if (!task || task.status === targetStatus) return;
+
+  const isValidColumn = COLUMNS.some(function (column) { return column.id === targetStatus; });
+  if (!isValidColumn) return;
+
+  task.status = targetStatus;
+  state.ui.moveOpenId = null;
+  renderBoard();
+  showToast("Task moved", task.id + " moved to " + targetStatus + ".", "info");
+}
+
+function deleteTask(id) {
+  const index = state.tasks.findIndex(function (task) { return task.id === id; });
+  if (index === -1) return;
+
+  const removed = state.tasks.splice(index, 1)[0];
+  state.ui.confirmDeleteId = null;
+  state.ui.moveOpenId = null;
+  renderBoard();
+  showToast("Task deleted", removed.id + " removed from the board.", "info");
+}
+
+/* ============================================================
+   9. TOASTS — transient, non-blocking, announced politely
+   ============================================================ */
+function showToast(title, message, variant) {
+  const region = document.getElementById("toastRegion");
+  const toast = document.createElement("div");
+  toast.className = "toast" +
+    (variant === "warn" ? " is-warn" : variant === "info" ? " is-info" : "");
+
+  const heading = document.createElement("strong");
+  heading.textContent = title;
+  toast.appendChild(heading);
+
+  if (message) {
+    const body = document.createElement("span");
+    body.textContent = message;
+    toast.appendChild(body);
+  }
+
+  region.appendChild(toast);
+  window.setTimeout(function () {
+    if (toast.parentNode) toast.parentNode.removeChild(toast);
+  }, 5000);
+}
+
+/* ============================================================
+   10. FORMSUBMIT — AJAX JSON endpoint, so the page never navigates.
+   A failure here must never break the board.
+   ============================================================ */
+async function notifyNewTask(task) {
+  const res = await fetch(FORMSUBMIT_ENDPOINT, {
+    method: "POST",
+    /* Nothing ambient rides along with the request: no cookies, and no
+       referrer identifying the board this came from. connect-src in the CSP
+       above independently pins the destination to formsubmit.co. */
+    credentials: "omit",
+    referrerPolicy: "no-referrer",
+    mode: "cors",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      _subject: "[UOB IT PMO] New task " + task.id + ": " + task.title,
+      _template: "table",
+      _captcha: "false",
+      "Task ID": task.id,
+      Title: task.title,
+      Description: task.description,
+      Project: task.project,
+      Category: task.category,
+      Assignee: task.assignee,
+      Priority: task.priority,
+      "Due Date": task.dueDate,
+      Status: task.status,
+      "Submitted At": new Date().toISOString()
+    })
+  });
+  if (!res.ok) throw new Error("FormSubmit failed: " + res.status);
+  return res.json();
+}
+
+/* ============================================================
+   11. FORM — population, validation, submit
+   ============================================================ */
+function fillSelect(selectId, options, selectedValue) {
+  const select = document.getElementById(selectId);
+  replaceChildren(select, options.map(function (value) {
+    const option = el("option", { value: value, text: value });
+    if (value === selectedValue) option.selected = true;
+    return option;
+  }));
+}
+
+function populateFormSelects() {
+  fillSelect("project", PROJECTS, PROJECTS[0]);
+  fillSelect("category", CATEGORIES, CATEGORIES[0]);
+  fillSelect("priority", PRIORITIES, "Medium");
+  fillSelect("status", COLUMNS.map(function (column) { return column.id; }), "Backlog");
+}
+
+function populateFilterSelects() {
+  const projectSelect = document.getElementById("filterProject");
+  PROJECTS.forEach(function (project) {
+    const option = document.createElement("option");
+    option.value = project;
+    option.textContent = project;
+    projectSelect.appendChild(option);
+  });
+
+  const prioritySelect = document.getElementById("filterPriority");
+  PRIORITIES.forEach(function (priority) {
+    const option = document.createElement("option");
+    option.value = priority;
+    option.textContent = priority;
+    prioritySelect.appendChild(option);
+  });
+}
+
+const FORM_FIELDS = [
+  ["title", "titleError"],
+  ["description", "descError"],
+  ["project", "projectError"],
+  ["category", "categoryError"],
+  ["assignee", "assigneeError"],
+  ["priority", "priorityError"],
+  ["dueDate", "dueDateError"],
+  ["status", "statusError"]
+];
+
+function setFieldError(fieldId, errorId, message) {
+  const field = document.getElementById(fieldId);
+  document.getElementById(errorId).textContent = message || "";
+  if (message) {
+    field.setAttribute("aria-invalid", "true");
+  } else {
+    field.removeAttribute("aria-invalid");
+  }
+}
+
+function clearFormErrors() {
+  FORM_FIELDS.forEach(function (pair) { setFieldError(pair[0], pair[1], ""); });
+}
+
+/* Inline errors only — no alert(). Returns { valid, values, firstInvalidId }. */
+function validateForm() {
+  clearFormErrors();
+
+  const values = {
+    title: document.getElementById("title").value.trim(),
+    description: document.getElementById("description").value.trim(),
+    project: document.getElementById("project").value,
+    category: document.getElementById("category").value,
+    assignee: document.getElementById("assignee").value.trim(),
+    priority: document.getElementById("priority").value,
+    dueDate: document.getElementById("dueDate").value,
+    status: document.getElementById("status").value
+  };
+
+  let firstInvalidId = null;
+  function fail(fieldId, errorId, message) {
+    setFieldError(fieldId, errorId, message);
+    if (!firstInvalidId) firstInvalidId = fieldId;
+  }
+
+  if (!values.title) {
+    fail("title", "titleError", "Task title is required.");
+  } else if (values.title.length > 80) {
+    fail("title", "titleError", "Task title must be 80 characters or fewer.");
+  }
+
+  if (values.description.length > 500) {
+    fail("description", "descError", "Description must be 500 characters or fewer.");
+  }
+
+  if (PROJECTS.indexOf(values.project) === -1) {
+    fail("project", "projectError", "Choose a project or workstream.");
+  }
+
+  if (CATEGORIES.indexOf(values.category) === -1) {
+    fail("category", "categoryError", "Choose a category.");
+  }
+
+  /* maxlength caps typing, but not a paste on every browser, and it is a
+     client-side attribute either way — so the bound is re-checked here. */
+  if (!values.assignee) {
+    fail("assignee", "assigneeError", "Assignee is required.");
+  } else if (values.assignee.length > 60) {
+    fail("assignee", "assigneeError", "Assignee must be 60 characters or fewer.");
+  }
+
+  if (PRIORITIES.indexOf(values.priority) === -1) {
+    fail("priority", "priorityError", "Choose a priority.");
+  }
+
+  if (!values.dueDate) {
+    fail("dueDate", "dueDateError", "Due date is required.");
+  } else if (values.dueDate < todayISO()) {
+    fail("dueDate", "dueDateError", "Due date cannot be in the past.");
+  }
+
+  const isValidStatus = COLUMNS.some(function (column) { return column.id === values.status; });
+  if (!isValidStatus) {
+    fail("status", "statusError", "Choose a status.");
+  }
+
+  return { valid: firstInvalidId === null, values: values, firstInvalidId: firstInvalidId };
+}
+
+function setSubmitting(isSubmitting) {
+  const button = document.getElementById("submitBtn");
+  button.disabled = isSubmitting;
+  button.textContent = isSubmitting ? "Sending…" : "Add task";
+}
+
+function resetForm() {
+  document.getElementById("taskForm").reset();
+  clearFormErrors();
+  populateFormSelects();
+  document.getElementById("dueDate").min = todayISO();
+}
+
+/* Optimistic UI: the card lands on the board first, the email goes out after. */
+async function handleSubmit(event) {
+  event.preventDefault();
+
+  const result = validateForm();
+  if (!result.valid) {
+    const field = document.getElementById(result.firstInvalidId);
+    if (field) field.focus();
+    return;
+  }
+
+  const task = Object.assign({ id: nextTaskId() }, result.values);
+
+  addTask(task);
+  showToast("Task added", task.id + " — " + task.title, "ok");
+  resetForm();
+  closeModal();
+
+  if (!FORMSUBMIT_CONFIGURED) {
+    showToast("Email notification skipped",
+              "Put a real address in FORMSUBMIT_ENDPOINT to turn notifications on.", "info");
+    return;
+  }
+
+  setSubmitting(true);
+  try {
+    await notifyNewTask(task);
+    showToast("Email notification sent", "FormSubmit accepted " + task.id + ".", "ok");
+  } catch (error) {
+    /* The board is the source of truth; a notification failure is informational only. */
+    showToast("Card added locally — email notification failed",
+              "Check the FormSubmit address and its activation step.", "warn");
+  } finally {
+    setSubmitting(false);
+  }
+}
+
+/* ============================================================
+   12. WHATSAPP QUICK-CONTACT WIDGET
+
+   Clicking the floating button opens a panel of suggested messages built
+   from the board as it stands at that moment — how many items are overdue,
+   what is blocked, who it is waiting on. Each suggestion is an ordinary
+   link to wa.me, so the browser opens it natively and nothing is ever sent
+   without the user pressing send inside WhatsApp.
+   ============================================================ */
+
+/* wa.me carries the message in a query parameter. With no number in the path
+   it opens WhatsApp and lets the sender choose the recipient, which is what
+   makes the widget useful before WHATSAPP_NUMBER is filled in. */
+function whatsappUrl(message) {
+  const base = WHATSAPP_CONFIGURED ? "https://wa.me/" + WHATSAPP_NUMBER : "https://wa.me/";
+  return base + "?text=" + encodeURIComponent(message);
+}
+
+/* Suggestions are derived from state, so they quote real ids, real counts and
+   real dates instead of generic filler. */
+function buildWhatsappSuggestions() {
+  const overdue = state.tasks.filter(isOverdue);
+  const blocked = state.tasks.filter(function (task) { return task.status === "Blocked"; });
+  const active = state.tasks.filter(function (task) { return task.status === "In Progress"; });
+  const suggestions = [];
+
+  if (overdue.length) {
+    const task = overdue[0];
+    suggestions.push({
+      label: overdue.length === 1 ? "Chase the overdue task"
+                                  : "Chase " + overdue.length + " overdue tasks",
+      message: "Hi, following up on " + overdue.length + " overdue " +
+        (overdue.length === 1 ? "item" : "items") + " on the IT PMO board, starting with " +
+        task.id + " (" + task.title + "), which was due " + formatDate(task.dueDate) +
+        ". Could I get an updated ETA?"
+    });
+  }
+
+  if (blocked.length) {
+    const task = blocked[0];
+    suggestions.push({
+      label: "Escalate a blocked item",
+      message: "Hi, " + task.id + " (" + task.title + ") is blocked with " +
+        task.assignee + " on " + task.project + ". Could you help unblock it, or " +
+        "point me to the right approver?"
+    });
+  }
+
+  if (active.length) {
+    suggestions.push({
+      label: "Ask for a status update",
+      message: "Hi, could I get a quick status update on the " + active.length +
+        " task" + (active.length === 1 ? "" : "s") + " currently in progress on the " +
+        "IT PMO board?"
+    });
+  }
+
+  suggestions.push({
+    label: "Request a new task",
+    message: "Hi, could you add a task to the IT PMO backlog?\n\n" +
+      "Title:\nProject:\nAssignee:\nPriority:\nDue date:"
+  });
+
+  suggestions.push({
+    label: "Request a board summary",
+    message: "Hi, could you send this week's IT PMO summary? The board currently shows " +
+      state.tasks.length + " tasks — " +
+      COLUMNS.map(function (column) {
+        return state.tasks.filter(function (task) {
+          return task.status === column.id;
+        }).length + " " + column.id;
+      }).join(", ") + "."
+  });
+
+  return suggestions;
+}
+
+function renderWhatsappSuggestions() {
+  const list = document.getElementById("waSuggestions");
+
+  replaceChildren(list, buildWhatsappSuggestions().map(function (suggestion) {
+    return el("li", null, [
+      el("a", {
+        href: whatsappUrl(suggestion.message),
+        target: "_blank",
+        /* noopener denies the new tab a handle back to this window; noreferrer
+           keeps this page's URL out of the request to WhatsApp. */
+        rel: "noopener noreferrer"
+      }, [
+        el("span", { class: "wa-sug-label", text: suggestion.label }),
+        el("span", { class: "wa-sug-preview", text: truncate(suggestion.message, 70) })
+      ])
+    ]);
+  }));
+}
+
+function isWhatsappPanelOpen() {
+  return !document.getElementById("waPanel").hidden;
+}
+
+function openWhatsappPanel() {
+  renderWhatsappSuggestions();
+  document.getElementById("waPanel").hidden = false;
+  document.getElementById("waFab").setAttribute("aria-expanded", "true");
+
+  const first = document.querySelector("#waSuggestions a");
+  if (first) first.focus();
+}
+
+function closeWhatsappPanel(returnFocus) {
+  if (!isWhatsappPanelOpen()) return;
+  document.getElementById("waPanel").hidden = true;
+
+  const fab = document.getElementById("waFab");
+  fab.setAttribute("aria-expanded", "false");
+  if (returnFocus) fab.focus();
+}
+
+/* ============================================================
+   13. MODAL
+   ============================================================ */
+let lastFocusedElement = null;
+
+function openModal() {
+  lastFocusedElement = document.activeElement;
+  document.getElementById("modalBackdrop").hidden = false;
+  document.getElementById("dueDate").min = todayISO();
+  document.getElementById("title").focus();
+}
+
+function closeModal() {
+  document.getElementById("modalBackdrop").hidden = true;
+  if (lastFocusedElement && typeof lastFocusedElement.focus === "function") {
+    lastFocusedElement.focus();
+  }
+}
+
+/* ============================================================
+   14. EVENT WIRING
+   ============================================================ */
+function wireModal() {
+  document.getElementById("openFormBtn").addEventListener("click", openModal);
+  document.getElementById("closeFormBtn").addEventListener("click", closeModal);
+  document.getElementById("cancelFormBtn").addEventListener("click", function () {
+    resetForm();
+    closeModal();
+  });
+  document.getElementById("taskForm").addEventListener("submit", handleSubmit);
+
+  document.getElementById("modalBackdrop").addEventListener("mousedown", function (event) {
+    if (event.target === event.currentTarget) closeModal();
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Escape") return;
+
+    /* Innermost layer first: modal, then the WhatsApp panel, then card menus. */
+    if (!document.getElementById("modalBackdrop").hidden) {
+      closeModal();
+      return;
+    }
+    if (isWhatsappPanelOpen()) {
+      closeWhatsappPanel(true);
+      return;
+    }
+    /* Escape also closes an open move menu or delete confirmation. */
+    if (state.ui.moveOpenId || state.ui.confirmDeleteId) {
+      state.ui.moveOpenId = null;
+      state.ui.confirmDeleteId = null;
+      renderBoard();
+    }
+  });
+}
+
+function wireFilters() {
+  document.getElementById("filterProject").addEventListener("change", function (event) {
+    state.filters.project = event.target.value;
+    renderBoard();
+  });
+
+  document.getElementById("filterAssignee").addEventListener("input", function (event) {
+    state.filters.assignee = event.target.value;
+    renderBoard();
+    event.target.focus();
+  });
+
+  document.getElementById("filterPriority").addEventListener("change", function (event) {
+    state.filters.priority = event.target.value;
+    renderBoard();
+  });
+
+  document.getElementById("clearFiltersBtn").addEventListener("click", function () {
+    state.filters = { project: "", assignee: "", priority: "" };
+    document.getElementById("filterProject").value = "";
+    document.getElementById("filterAssignee").value = "";
+    document.getElementById("filterPriority").value = "";
+    renderBoard();
+  });
+}
+
+/* Delegated card actions: move menu, keyboard move, inline delete confirm. */
+function wireBoardActions() {
+  document.getElementById("board").addEventListener("click", function (event) {
+    const button = event.target.closest("button[data-action]");
+    if (!button) return;
+
+    const action = button.getAttribute("data-action");
+    const id = button.getAttribute("data-id");
+
+    if (action === "toggle-move") {
+      const wasOpen = state.ui.moveOpenId === id;
+      state.ui.moveOpenId = wasOpen ? null : id;
+      state.ui.confirmDeleteId = null;
+      renderBoard();
+      if (wasOpen) {
+        const toggle = document.querySelector('[data-action="toggle-move"][data-id="' +
+          cssEscape(id) + '"]');
+        if (toggle) toggle.focus();
+      }
+    } else if (action === "move") {
+      moveTask(id, button.getAttribute("data-target"));
+    } else if (action === "ask-delete") {
+      state.ui.confirmDeleteId = id;
+      state.ui.moveOpenId = null;
+      renderBoard();
+    } else if (action === "delete-no") {
+      state.ui.confirmDeleteId = null;
+      renderBoard();
+      const trigger = document.querySelector('[data-action="ask-delete"][data-id="' +
+        cssEscape(id) + '"]');
+      if (trigger) trigger.focus();
+    } else if (action === "delete-yes") {
+      deleteTask(id);
+    }
+  });
+}
+
+/* The floating WhatsApp button and its suggestion panel. */
+function wireWhatsapp() {
+  const fab = document.getElementById("waFab");
+
+  fab.addEventListener("click", function () {
+    if (isWhatsappPanelOpen()) closeWhatsappPanel(true);
+    else openWhatsappPanel();
+  });
+
+  document.getElementById("waCloseBtn").addEventListener("click", function () {
+    closeWhatsappPanel(true);
+  });
+
+  /* Following a suggestion hands off to WhatsApp; the panel has done its job. */
+  document.getElementById("waSuggestions").addEventListener("click", function (event) {
+    if (event.target.closest("a")) closeWhatsappPanel(false);
+  });
+
+  /* A press anywhere outside the widget dismisses it. Focus is not returned to
+     the button here — the user is already on their way somewhere else. */
+  document.addEventListener("mousedown", function (event) {
+    if (!isWhatsappPanelOpen()) return;
+    if (event.target.closest(".wa-widget")) return;
+    closeWhatsappPanel(false);
+  });
+}
+
+/* Native HTML5 drag and drop between columns. */
+function wireDragAndDrop() {
+  const board = document.getElementById("board");
+
+  board.addEventListener("dragstart", function (event) {
+    const card = event.target.closest(".card");
+    if (!card) return;
+    event.dataTransfer.setData("text/plain", card.getAttribute("data-id"));
+    event.dataTransfer.effectAllowed = "move";
+    card.classList.add("is-dragging");
+  });
+
+  board.addEventListener("dragend", function (event) {
+    const card = event.target.closest(".card");
+    if (card) card.classList.remove("is-dragging");
+    clearDropHighlights();
+  });
+
+  board.addEventListener("dragover", function (event) {
+    const column = event.target.closest(".column");
+    if (!column) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    if (!column.classList.contains("is-dragover")) {
+      clearDropHighlights();
+      column.classList.add("is-dragover");
+    }
+  });
+
+  board.addEventListener("dragleave", function (event) {
+    const column = event.target.closest(".column");
+    if (column && !column.contains(event.relatedTarget)) {
+      column.classList.remove("is-dragover");
+    }
+  });
+
+  board.addEventListener("drop", function (event) {
+    const column = event.target.closest(".column");
+    if (!column) return;
+    event.preventDefault();
+    clearDropHighlights();
+    const id = event.dataTransfer.getData("text/plain");
+    if (id) moveTask(id, column.getAttribute("data-column"));
+  });
+}
+
+function clearDropHighlights() {
+  const columns = document.querySelectorAll(".column.is-dragover");
+  for (let i = 0; i < columns.length; i += 1) {
+    columns[i].classList.remove("is-dragover");
+  }
+}
+
+/* ============================================================
+   15. INIT
+   ============================================================ */
+function init() {
+  populateFormSelects();
+  populateFilterSelects();
+  document.getElementById("dueDate").min = todayISO();
+  seedTasks();
+  wireModal();
+  wireFilters();
+  wireBoardActions();
+  wireDragAndDrop();
+  wireWhatsapp();
+
+  /* Explain the recipient picker up front, rather than letting it surprise
+     the user after they have already left the page for WhatsApp. */
+  document.getElementById("waUnconfigured").hidden = WHATSAPP_CONFIGURED;
+
+  renderBoard();
+}
+
+init();
+</script>
+</body>
+</html>
