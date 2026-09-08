@@ -1,0 +1,49 @@
+name: Deploy to GitHub Pages
+
+# Builds nothing — the site is static files at the repo root — and publishes
+# them to GitHub Pages via the Pages deployment API.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege that still allows a Pages deployment:
+# id-token is required by actions/deploy-pages for its OIDC handshake.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never run two Pages deployments at once; let an in-flight deploy finish
+# rather than cancelling it half-published.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          # Turn Pages on automatically and set its source to GitHub Actions,
+          # so the site works without visiting repository settings first.
+          enablement: true
+
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Repo root: index.html, 404.html and .nojekyll.
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
