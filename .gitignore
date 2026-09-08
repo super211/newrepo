@@ -21,3 +21,10 @@ _site/
 
 # Playwright MCP scratch output
 .playwright-mcp/
+
+# Claude Code skill lockfile — local tooling metadata, not part of the site
+skills-lock.json
+
+# Playwright MCP writes captures into the working directory; the README image
+# lives in docs/, so ignore stray screenshots at the repo root only.
+/*.png
