@@ -6,6 +6,8 @@ with no build step, no framework and no dependencies — open the file and it ru
 
 **Live: https://super211.github.io/newrepo/**
 
+![The Kanban board with its four columns and the seeded demo tasks](docs/screenshot.png)
+
 ## What it does
 
 - Cards carry a title, description, project, category, assignee, priority, due
