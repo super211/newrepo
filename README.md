@@ -23,7 +23,65 @@ Two things worth knowing before relying on it:
 - **Nothing is persisted.** State lives in memory only — no localStorage,
   sessionStorage, IndexedDB or cookies — so a page refresh restores the demo
   seed and discards anything you added.
-- Every user-supplied string is escaped before it reaches `innerHTML`.
+- The board is built with `createElement` and `textContent`. `innerHTML` is never
+  assigned anywhere in the file, so a task title containing markup has no route to
+  the HTML parser at all — see [Security](#security) below.
+
+## Security
+
+The board takes free text from a form and puts it straight on screen, so the
+hardening is aimed at that path first.
+
+- **No HTML string rendering.** Every card, column, summary chip and `<option>` is
+  constructed with `createElement` and filled with `textContent`. This removes the
+  cross-site scripting sink class rather than escaping around it: correctness no
+  longer depends on an escaping helper being right in every context, and staying
+  right through later edits. Verified by feeding `<img src=x onerror=...>` and
+  `"><svg onload=...>` through the form — both render as literal text, and no
+  element is created.
+- **A restrictive Content-Security-Policy** in a `<meta>` tag. `default-src 'none'`
+  denies everything not explicitly allowed, so no third-party script can be pulled
+  in later and injected markup has nowhere to call home. `connect-src` pins network
+  access to `formsubmit.co` alone.
+  `script-src`/`style-src` need `'unsafe-inline'` because this is a single file with
+  no build step — there is no external bundle for `'self'` to point at, and a static
+  host cannot mint a per-response nonce. Two protections are impossible in a meta
+  tag: `frame-ancestors` and `X-Content-Type-Options` are ignored there and need real
+  response headers. Behind a host that can set headers, add both.
+- **Bounded input.** Every free-text field has a length cap that is re-checked in
+  JavaScript, not just declared as a `maxlength` attribute.
+- **No ambient credentials leave the page.** The notification request sends
+  `credentials: "omit"` and `referrerPolicy: "no-referrer"`, and a page-level
+  `<meta name="referrer" content="no-referrer">` keeps the URL out of third-party
+  logs.
+
+What this does *not* claim: there is no authentication, no authorization and no
+server, because there is no data worth protecting — the seed data is invented and
+nothing is stored. Do not add real project data to it on that basis.
+
+## Design and accessibility
+
+The interface uses a green design system driven entirely by CSS custom properties
+in one `:root` block — change a token there and the whole board follows.
+
+- **Green is the brand ramp, not the whole palette.** `--brand-700` (`#15803d`) is
+  the action colour at 5.0:1 behind white text. Priority stays functionally
+  colour-coded — red, amber, teal, grey — because four shades of green would be
+  indistinguishable at a glance.
+- **Each lane has its own accent**, shown as a bar across the top of the column and
+  a swatch beside its heading, so a column is identifiable without reading it.
+- **Colour is never the only signal.** Priority and status carry a text label, and
+  an overdue card is marked by a red badge, a warning glyph *and* the word
+  "Overdue" — it survives colour blindness and greyscale printing.
+- **Dragging is never the only way to move a card** (WCAG 2.2 *Dragging Movements*).
+  The "Move ▸" control on each card opens a list of destination columns that works
+  with a keyboard, a screen reader or a single tap.
+- **Contrast is measured, not assumed.** All 22 text/background pairs were computed
+  against WCAG thresholds in the browser; the audit caught five failures, including
+  a primary button at 3.3:1, and the tokens were darkened until every pair passed.
+- Focus rings are a 2px perimeter with a white halo so they stay visible on pale
+  cards and on the dark green header alike, interactive targets are at least 24px,
+  and `prefers-reduced-motion` drops the movement while keeping the state changes.
 
 ## Running it locally
 

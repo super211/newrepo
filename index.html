@@ -3,12 +3,44 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!--
+  Content-Security-Policy, delivered as a meta tag because GitHub Pages serves
+  static files and cannot set response headers.
+
+  default-src 'none' is the important line: everything is denied unless listed
+  below, so a future edit cannot quietly pull in a third-party script, and an
+  injected <img>, <object> or <iframe> has nowhere to call home.
+
+  'unsafe-inline' is required for script-src and style-src because the app is a
+  single self-contained file with no build step, so there is no external bundle
+  to point 'self' at and no server to mint a per-response nonce. A hash would
+  pin the current script, but any later edit would silently blank the page — a
+  worse trade for a file meant to be opened and edited directly. The remaining
+  directives still cut off external loading and data exfiltration.
+
+  Two protections cannot be expressed here: frame-ancestors and
+  X-Content-Type-Options are ignored in a meta tag and need real response
+  headers. Behind a host that can set them, add both.
+-->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'none';
+  script-src 'unsafe-inline';
+  style-src 'unsafe-inline';
+  img-src data:;
+  connect-src https://formsubmit.co;
+  base-uri 'none';
+  form-action 'none'">
+
+<!-- No URL, and therefore no task title in a query string, ever reaches a third party. -->
+<meta name="referrer" content="no-referrer">
+
 <title>UOB IT PMO — Project Kanban</title>
 
 <!-- Inline data-URI favicon. Browsers auto-request /favicon.ico, which on a GitHub Pages
      *project* site resolves at the origin root (not /newrepo/) and would 404. Declaring the
      icon inline satisfies the request with no network round-trip and no external file. -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23123a6b'/%3E%3Crect x='7' y='8' width='4' height='16' rx='1' fill='%23e3eefa'/%3E%3Crect x='14' y='8' width='4' height='11' rx='1' fill='%237fb3e0'/%3E%3Crect x='21' y='8' width='4' height='7' rx='1' fill='%231f6fb2'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2314532d'/%3E%3Crect x='7' y='8' width='4' height='16' rx='1' fill='%23dcfce7'/%3E%3Crect x='14' y='8' width='4' height='11' rx='1' fill='%234ade80'/%3E%3Crect x='21' y='8' width='4' height='7' rx='1' fill='%2316a34a'/%3E%3C/svg%3E">
 
 <!--
   UOB IT PMO — internal demo / training tool.
@@ -22,36 +54,51 @@
    1. DESIGN TOKENS
    ============================================================ */
 :root {
-  /* Corporate blue palette (neutral — not a real brand mark) */
-  --blue-900: #0b2545;
-  --blue-800: #123a6b;
-  --blue-700: #17508f;
-  --blue-600: #1f6fb2;
-  --blue-100: #e3eefa;
-  --blue-050: #f2f7fd;
+  /* Green brand ramp (neutral — not a real brand mark).
+     --brand-700 is the action colour: 5.0:1 against white, so white label
+     text on a filled button clears WCAG AA for normal text. */
+  --brand-900: #14532d;
+  --brand-800: #166534;
+  --brand-700: #15803d;
+  --brand-600: #16a34a;
+  --brand-100: #dcfce7;
+  --brand-050: #f0fdf4;
 
-  --ink:      #16202e;
-  --ink-soft: #4a5768;
-  --ink-mute: #6f7d8f;
-  --line:     #d7dee8;
+  --ink:      #17241c;
+  --ink-soft: #4a5b50;
+  /* Darkened from #6b7d72, which measured 4.37:1 on white and 3.67:1 on the
+     column background — both under the 4.5:1 minimum for this text size. */
+  --ink-mute: #55665b;
+  --line:     #cfe3d6;
   --surface:  #ffffff;
-  --canvas:   #eef2f7;
+  --canvas:   #eaf3ed;
 
-  /* Priority */
+  /* Priority stays functionally colour-coded rather than shades of the brand:
+     four greens would be indistinguishable at a glance. Every priority also
+     carries a text label, so colour is never the only signal. */
   --p-critical: #c0392b;
-  --p-high:     #b26a08;
-  --p-medium:   #1f6fb2;
+  --p-high:     #8f5700; /* was #b26a08 — only 4.24:1 behind the white pill text */
+  --p-medium:   #0f766e;
   --p-low:      #6b7787;
 
+  /* Column accents. Each column gets its own hue so the eye can find a lane
+     without reading the heading; the heading text is still the real label. */
+  --col-Backlog:      #94a3b8;
+  --col-InProgress:   #16a34a;
+  --col-Blocked:      #b26a08;
+  --col-Done:         #14532d;
+
   /* Feedback */
-  --ok:      #1c7c4a;
-  --ok-bg:   #e6f4ec;
+  --ok:      #15803d;
+  --ok-bg:   #dcfce7;
   --warn:    #9a5c00;
   --warn-bg: #fdf1dd;
   --err:     #b3261e;
   --err-bg:  #fdecea;
 
-  --focus: #0f62d6;
+  /* Focus indicator: 2px minimum perimeter, paired with a white halo so it
+     stays visible on the dark green header as well as on pale surfaces. */
+  --focus: #14532d;
 
   /* Spacing scale */
   --s-1: 4px;
@@ -63,8 +110,8 @@
 
   --radius: 8px;
   --radius-sm: 5px;
-  --shadow-1: 0 1px 2px rgba(11, 37, 69, .10), 0 1px 3px rgba(11, 37, 69, .06);
-  --shadow-2: 0 6px 20px rgba(11, 37, 69, .18);
+  --shadow-1: 0 1px 2px rgba(20, 83, 45, .10), 0 1px 3px rgba(20, 83, 45, .06);
+  --shadow-2: 0 6px 20px rgba(20, 83, 45, .18);
 
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
           "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -89,17 +136,39 @@ h1, h2, h3 { margin: 0; line-height: 1.25; }
 
 button { font: inherit; color: inherit; cursor: pointer; }
 
+/* A 2px perimeter plus a white halo, so the ring keeps its 3:1 contrast whether
+   it lands on a pale card, the mid-green canvas, or a filled green button. */
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
   border-radius: 3px;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, .9);
+}
+
+/* The header is dark green; invert the ring there rather than lose it. */
+.app-header :focus-visible {
+  outline-color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(20, 83, 45, .55);
+}
+
+/* Sticky column headers must never cover the control being focused. */
+html { scroll-padding-top: 92px; }
+
+/* Honour a reduced-motion preference: keep state changes, drop the movement. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ============================================================
    3. HEADER / WORDMARK / SUMMARY STRIP
    ============================================================ */
 .app-header {
-  background: linear-gradient(180deg, var(--blue-900), var(--blue-800));
+  background: linear-gradient(180deg, var(--brand-900), var(--brand-800));
   color: #fff;
   padding: var(--s-4) var(--s-5);
   box-shadow: var(--shadow-1);
@@ -126,20 +195,20 @@ button { font: inherit; color: inherit; cursor: pointer; }
   font-weight: 500;
   letter-spacing: 1.4px;
   text-transform: uppercase;
-  color: var(--blue-100);
+  color: var(--brand-100);
 }
 .wordmark-rule {
   width: 3px;
   align-self: stretch;
   min-height: 26px;
-  background: var(--blue-600);
+  background: var(--brand-600);
   border-radius: 2px;
 }
 
 .header-note {
   margin: var(--s-2) 0 0;
   font-size: 12px;
-  color: var(--blue-100);
+  color: var(--brand-100);
   max-width: 78ch;
 }
 
@@ -166,13 +235,16 @@ button { font: inherit; color: inherit; cursor: pointer; }
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: .7px;
-  color: var(--blue-100);
+  color: var(--brand-100);
 }
 .summary .s-value { font-size: 17px; font-weight: 700; }
+/* Opaque, not translucent: a see-through red over the dark green header
+   composites to olive and stops reading as an alert. */
 .summary li.is-alert {
-  background: rgba(192, 57, 43, .32);
-  border-color: rgba(255, 190, 185, .55);
+  background: #b3261e;
+  border-color: #f3c2be;
 }
+.summary li.is-alert .s-label { color: #ffe8e6; }
 
 /* Buttons */
 .btn {
@@ -180,32 +252,36 @@ button { font: inherit; color: inherit; cursor: pointer; }
   border-radius: var(--radius-sm);
   padding: var(--s-2) var(--s-4);
   font-weight: 600;
-  background: var(--blue-600);
+  /* brand-600 measured 3.30:1 behind white label text; brand-700 is 5.0:1. */
+  background: var(--brand-700);
   color: #fff;
   transition: background .12s ease, opacity .12s ease;
 }
-.btn:hover { background: var(--blue-700); }
+.btn:hover { background: var(--brand-800); }
 .btn:disabled { opacity: .65; cursor: progress; }
 
 .btn-secondary {
   background: var(--surface);
-  color: var(--blue-800);
+  color: var(--brand-800);
   border-color: var(--line);
 }
-.btn-secondary:hover { background: var(--blue-050); }
+.btn-secondary:hover { background: var(--brand-050); }
 
+/* min-height 24px meets the WCAG target-size minimum; the 8px flex gap on the
+   containers below keeps adjacent targets from crowding each other. */
 .btn-ghost {
   background: var(--surface);
   border: 1px solid var(--line);
   color: var(--ink-soft);
   border-radius: var(--radius-sm);
-  padding: 3px var(--s-2);
+  padding: var(--s-1) var(--s-2);
+  min-height: 24px;
   font-size: 12px;
 }
 .btn-ghost:hover {
-  background: var(--blue-050);
-  border-color: var(--blue-600);
-  color: var(--blue-800);
+  background: var(--brand-050);
+  border-color: var(--brand-600);
+  color: var(--brand-800);
 }
 .btn-ghost:disabled { cursor: default; }
 
@@ -273,26 +349,42 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 }
 
 .column {
-  background: #e6ecf4;
+  background: #e2eee6;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   display: flex;
   flex-direction: column;
   min-height: 220px;
+  overflow: hidden; /* keeps the accent bar inside the rounded corner */
   transition: background .12s ease, border-color .12s ease, box-shadow .12s ease;
+}
+
+/* Per-lane accent bar across the top of each column. */
+.column::before {
+  content: "";
+  display: block;
+  height: 4px;
+  background: var(--col-accent, var(--brand-600));
 }
 
 /* Drop-target highlight */
 .column.is-dragover {
-  background: var(--blue-100);
-  border-color: var(--blue-600);
-  box-shadow: inset 0 0 0 2px var(--blue-600);
+  background: var(--brand-100);
+  border-color: var(--brand-600);
+  box-shadow: inset 0 0 0 2px var(--brand-600);
 }
 
+/* Sticky so the lane you are dropping into stays labelled on a long board. */
 .column-header {
   padding: var(--s-3) var(--s-3) var(--s-2);
   border-bottom: 1px solid var(--line);
+  background: #e2eee6;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
+.column.is-dragover .column-header { background: var(--brand-100); }
+
 .col-title-row {
   display: flex;
   align-items: center;
@@ -303,17 +395,30 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: .8px;
-  color: var(--blue-900);
+  color: var(--brand-900);
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+/* Repeats the lane accent next to the label, for a second, non-positional cue. */
+.column-header h2::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--col-accent, var(--brand-600));
+  flex: none;
 }
 .count-badge {
-  background: var(--blue-800);
+  background: var(--brand-800);
   color: #fff;
   border-radius: 999px;
-  min-width: 22px;
-  padding: 1px 8px;
+  min-width: 24px;
+  padding: 2px 8px;
   text-align: center;
   font-size: 12px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 .col-hint { font-size: 11px; color: var(--ink-mute); margin: var(--s-1) 0 0; }
 
@@ -326,14 +431,14 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 }
 
 .empty-col {
-  border: 1px dashed var(--line);
+  border: 1px dashed var(--brand-600);
   border-radius: var(--radius-sm);
-  padding: var(--s-4);
+  padding: var(--s-5) var(--s-4);
   margin: 0;
   text-align: center;
-  color: var(--ink-mute);
+  color: var(--ink-soft);
   font-size: 12px;
-  background: rgba(255, 255, 255, .55);
+  background: rgba(255, 255, 255, .6);
 }
 
 /* ============================================================
@@ -347,9 +452,17 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
   padding: var(--s-3);
   box-shadow: var(--shadow-1);
   cursor: grab;
+  transition: box-shadow .12s ease, transform .12s ease, border-color .12s ease;
+}
+/* Micro-interaction: the card lifts slightly, confirming it is draggable
+   before the drag starts. transform only — no layout is recalculated. */
+.card:hover {
+  box-shadow: var(--shadow-2);
+  transform: translateY(-1px);
+  border-color: var(--brand-600);
 }
 .card:active { cursor: grabbing; }
-.card.is-dragging { opacity: .45; }
+.card.is-dragging { opacity: .45; transform: none; }
 
 /* Left border colour-codes priority (the pill repeats it as text) */
 .card.prio-Critical { border-left-color: var(--p-critical); }
@@ -385,18 +498,20 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .pill-Medium   { background: var(--p-medium); }
 .pill-Low      { background: var(--p-low); }
 
+/* 26px square: clears the 24px WCAG target-size minimum for web. */
 .icon-btn {
   background: transparent;
   border: 1px solid transparent;
   border-radius: 4px;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   line-height: 1;
   font-size: 16px;
   color: var(--ink-mute);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: none;
 }
 .icon-btn:hover { background: var(--err-bg); color: var(--err); border-color: var(--err); }
 
@@ -429,12 +544,14 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 }
 .tag {
   font-size: 11px;
-  background: var(--blue-050);
-  border: 1px solid var(--blue-100);
-  color: var(--blue-800);
+  background: var(--brand-050);
+  border: 1px solid var(--brand-100);
+  color: var(--brand-800);
   border-radius: 999px;
   padding: 1px 8px;
 }
+/* Red plus a warning glyph plus the word "Overdue": three signals, so the
+   state survives colour blindness and greyscale printing alike. */
 .badge-overdue {
   font-size: 11px;
   font-weight: 700;
@@ -443,6 +560,14 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
   color: var(--err);
   border-radius: 999px;
   padding: 1px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.badge-overdue::before {
+  content: "\26A0"; /* warning triangle */
+  font-size: 11px;
+  line-height: 1;
 }
 
 .card-actions {
@@ -457,7 +582,7 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
   margin-top: var(--s-2);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: var(--blue-050);
+  background: var(--brand-050);
   padding: var(--s-2);
   display: flex;
   flex-wrap: wrap;
@@ -472,9 +597,9 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
   margin-bottom: var(--s-1);
 }
 .move-menu button[aria-current="true"] {
-  background: var(--blue-100);
-  border-color: var(--blue-600);
-  color: var(--blue-900);
+  background: var(--brand-100);
+  border-color: var(--brand-600);
+  color: var(--brand-900);
 }
 
 /* Inline delete confirmation (deliberately not window.confirm) */
@@ -541,7 +666,7 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
   padding: var(--s-4) var(--s-5);
   border-bottom: 1px solid var(--line);
 }
-.modal-header h2 { font-size: 16px; color: var(--blue-900); }
+.modal-header h2 { font-size: 16px; color: var(--brand-900); }
 .modal-close {
   background: transparent;
   border: 1px solid var(--line);
@@ -552,7 +677,7 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
   line-height: 1;
   color: var(--ink-soft);
 }
-.modal-close:hover { background: var(--blue-050); }
+.modal-close:hover { background: var(--brand-050); }
 
 .form-grid {
   padding: var(--s-5);
@@ -609,7 +734,7 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
   color: #14532d;
 }
 .toast.is-warn { border-left-color: var(--warn); background: var(--warn-bg); color: #6b3f00; }
-.toast.is-info { border-left-color: var(--blue-600); background: var(--blue-050); color: var(--blue-900); }
+.toast.is-info { border-left-color: var(--brand-600); background: var(--brand-050); color: var(--brand-900); }
 .toast strong { display: block; }
 
 /* ============================================================
@@ -676,7 +801,7 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 
       <div class="field-inline">
         <label for="filterAssignee">Assignee contains</label>
-        <input type="text" id="filterAssignee" placeholder="e.g. Tan" autocomplete="off">
+        <input type="text" id="filterAssignee" placeholder="e.g. Tan" maxlength="60" autocomplete="off">
       </div>
 
       <div class="field-inline">
@@ -745,8 +870,9 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 
         <div class="field">
           <label for="assignee">Assignee <span class="req" aria-hidden="true">*</span></label>
-          <input type="text" id="assignee" name="assignee" required
-                 aria-describedby="assigneeError" autocomplete="off">
+          <input type="text" id="assignee" name="assignee" maxlength="60" required
+                 aria-describedby="assigneeHint assigneeError" autocomplete="off">
+          <span class="hint" id="assigneeHint">Required, max 60 characters.</span>
           <span class="error-text" id="assigneeError"></span>
         </div>
 
@@ -817,10 +943,10 @@ const FORMSUBMIT_CONFIGURED = !/YOUR_EMAIL@example\.com/i.test(FORMSUBMIT_ENDPOI
    2. CONSTANTS
    ============================================================ */
 const COLUMNS = [
-  { id: "Backlog",     hint: "Logged, not yet scheduled" },
-  { id: "In Progress", hint: "Actively being worked" },
-  { id: "Blocked",     hint: "Waiting on a dependency, vendor or approval" },
-  { id: "Done",        hint: "Completed / closed" }
+  { id: "Backlog",     hint: "Logged, not yet scheduled",                    accent: "var(--col-Backlog)" },
+  { id: "In Progress", hint: "Actively being worked",                        accent: "var(--col-InProgress)" },
+  { id: "Blocked",     hint: "Waiting on a dependency, vendor or approval",  accent: "var(--col-Blocked)" },
+  { id: "Done",        hint: "Completed / closed",                           accent: "var(--col-Done)" }
 ];
 
 const PROJECTS = [
@@ -861,14 +987,56 @@ const state = {
    4. SMALL HELPERS
    ============================================================ */
 
-/* Escape every user-supplied string before it reaches innerHTML. */
-function escapeHtml(value) {
-  return String(value === undefined || value === null ? "" : value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+/* ------------------------------------------------------------------
+   DOM construction helpers.
+
+   Every render path builds nodes with createElement and sets text with
+   textContent. Nothing on the board is assembled as an HTML string, and
+   innerHTML is never assigned.
+
+   That removes the cross-site scripting sink class outright rather than
+   defending it. A task title of <img src=x onerror=alert(1)> has no route
+   to the HTML parser at all, so correctness no longer depends on an
+   escaping helper being right — and staying right through every later
+   edit, in every context it happens to be used.
+   ------------------------------------------------------------------ */
+
+/* el("span", { class: "pill", text: "High" }) -> HTMLElement
+   Attribute values go through setAttribute and text through textContent;
+   neither parses markup. `dataset` sets data-* attributes, `text` sets the
+   text content, and a null/undefined/false value skips the attribute. */
+function el(tag, attrs, children) {
+  const node = document.createElement(tag);
+
+  if (attrs) {
+    Object.keys(attrs).forEach(function (name) {
+      const value = attrs[name];
+      if (value === null || value === undefined || value === false) return;
+
+      if (name === "text") {
+        node.textContent = String(value);
+      } else if (name === "dataset") {
+        Object.keys(value).forEach(function (key) { node.dataset[key] = String(value[key]); });
+      } else if (value === true) {
+        node.setAttribute(name, "");
+      } else {
+        node.setAttribute(name, String(value));
+      }
+    });
+  }
+
+  (children || []).forEach(function (child) {
+    if (child === null || child === undefined || child === false) return;
+    node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
+  });
+
+  return node;
+}
+
+/* Swap a container's children for a fresh set, without parsing HTML. */
+function replaceChildren(parent, nodes) {
+  parent.textContent = "";
+  nodes.forEach(function (node) { if (node) parent.appendChild(node); });
 }
 
 /* Local-date ISO string (yyyy-mm-dd) — avoids the UTC drift of toISOString(). */
@@ -1033,73 +1201,100 @@ function hasActiveFilters() {
    renderBoard()/renderCard() mutates card contents.
    ============================================================ */
 function renderCard(task) {
-  const id = escapeHtml(task.id);
-  const moveOpen = state.ui.moveOpenId === task.id;
-  const confirming = state.ui.confirmDeleteId === task.id;
+  const id = task.id;
+  const moveOpen = state.ui.moveOpenId === id;
+  const confirming = state.ui.confirmDeleteId === id;
 
-  const descriptionHtml = task.description
-    ? '<p class="card-desc">' + escapeHtml(task.description) + "</p>"
-    : "";
+  const parts = [];
 
-  const overdueHtml = isOverdue(task)
-    ? '<span class="badge-overdue">Overdue</span>'
-    : "";
+  parts.push(el("div", { class: "card-top" }, [
+    el("span", { class: "task-id", text: id }),
+    el("div", { class: "card-top-right" }, [
+      el("span", { class: "pill pill-" + task.priority, text: task.priority }),
+      el("button", {
+        type: "button",
+        class: "icon-btn",
+        dataset: { action: "ask-delete", id: id },
+        "aria-label": "Delete task " + id,
+        text: "×"
+      })
+    ])
+  ]));
 
-  const moveButtons = COLUMNS.map(function (column) {
-    const isCurrent = column.id === task.status;
-    return '<button type="button" class="btn-ghost" data-action="move" ' +
-      'data-id="' + id + '" data-target="' + escapeHtml(column.id) + '"' +
-      (isCurrent ? ' aria-current="true" disabled' : "") +
-      ' aria-label="Move ' + id + ' to ' + escapeHtml(column.id) + '">' +
-      escapeHtml(column.id) + "</button>";
-  }).join("");
+  parts.push(el("h3", { class: "card-title", text: task.title }));
 
-  const moveMenuHtml = moveOpen
-    ? '<div class="move-menu" role="group" aria-label="Move ' + id + ' to a column">' +
-        '<span class="move-label">Move to</span>' + moveButtons +
-      "</div>"
-    : "";
+  if (task.description) {
+    parts.push(el("p", { class: "card-desc", text: task.description }));
+  }
 
-  const confirmHtml = confirming
-    ? '<div class="confirm-row">' +
-        "<span>Delete?</span>" +
-        '<button type="button" class="btn-yes" data-action="delete-yes" data-id="' + id +
-          '" aria-label="Confirm delete of ' + id + '">Yes</button>' +
-        '<button type="button" class="btn-no" data-action="delete-no" data-id="' + id +
-          '" aria-label="Cancel delete of ' + id + '">No</button>' +
-      "</div>"
-    : "";
+  parts.push(el("dl", { class: "card-meta" }, [
+    el("dt", { text: "Project" }),  el("dd", { text: task.project }),
+    el("dt", { text: "Assignee" }), el("dd", { text: task.assignee }),
+    el("dt", { text: "Due" }),      el("dd", { text: formatDate(task.dueDate) })
+  ]));
 
-  return '<article class="card prio-' + escapeHtml(task.priority) + '" draggable="true" ' +
-      'data-id="' + id + '" aria-label="Task ' + id + ': ' + escapeHtml(task.title) + '">' +
-      '<div class="card-top">' +
-        '<span class="task-id">' + id + "</span>" +
-        '<div class="card-top-right">' +
-          '<span class="pill pill-' + escapeHtml(task.priority) + '">' +
-            escapeHtml(task.priority) + "</span>" +
-          '<button type="button" class="icon-btn" data-action="ask-delete" data-id="' + id +
-            '" aria-label="Delete task ' + id + '">&times;</button>' +
-        "</div>" +
-      "</div>" +
-      '<h3 class="card-title">' + escapeHtml(task.title) + "</h3>" +
-      descriptionHtml +
-      '<dl class="card-meta">' +
-        "<dt>Project</dt><dd>" + escapeHtml(task.project) + "</dd>" +
-        "<dt>Assignee</dt><dd>" + escapeHtml(task.assignee) + "</dd>" +
-        "<dt>Due</dt><dd>" + escapeHtml(formatDate(task.dueDate)) + "</dd>" +
-      "</dl>" +
-      '<div class="card-tags">' +
-        '<span class="tag">' + escapeHtml(task.category) + "</span>" +
-        overdueHtml +
-      "</div>" +
-      '<div class="card-actions">' +
-        '<button type="button" class="btn-ghost" data-action="toggle-move" data-id="' + id +
-          '" aria-expanded="' + (moveOpen ? "true" : "false") +
-          '" aria-label="Move task ' + id + ' to another column">Move &#9656;</button>' +
-      "</div>" +
-      moveMenuHtml +
-      confirmHtml +
-    "</article>";
+  parts.push(el("div", { class: "card-tags" }, [
+    el("span", { class: "tag", text: task.category }),
+    isOverdue(task) ? el("span", { class: "badge-overdue", text: "Overdue" }) : null
+  ]));
+
+  /* WCAG 2.2 "Dragging Movements": drag is never the only way to move a card.
+     This button opens a list of destination columns that works with a keyboard,
+     a screen reader, or a single tap. */
+  parts.push(el("div", { class: "card-actions" }, [
+    el("button", {
+      type: "button",
+      class: "btn-ghost",
+      dataset: { action: "toggle-move", id: id },
+      "aria-expanded": moveOpen ? "true" : "false",
+      "aria-label": "Move task " + id + " to another column",
+      text: "Move ▸"
+    })
+  ]));
+
+  if (moveOpen) {
+    parts.push(el("div", {
+      class: "move-menu",
+      role: "group",
+      "aria-label": "Move " + id + " to a column"
+    }, [el("span", { class: "move-label", text: "Move to" })].concat(
+      COLUMNS.map(function (column) {
+        const isCurrent = column.id === task.status;
+        return el("button", {
+          type: "button",
+          class: "btn-ghost",
+          dataset: { action: "move", id: id, target: column.id },
+          "aria-current": isCurrent ? "true" : null,
+          disabled: isCurrent,
+          "aria-label": "Move " + id + " to " + column.id,
+          text: column.id
+        });
+      })
+    )));
+  }
+
+  if (confirming) {
+    parts.push(el("div", { class: "confirm-row" }, [
+      el("span", { text: "Delete?" }),
+      el("button", {
+        type: "button", class: "btn-yes",
+        dataset: { action: "delete-yes", id: id },
+        "aria-label": "Confirm delete of " + id, text: "Yes"
+      }),
+      el("button", {
+        type: "button", class: "btn-no",
+        dataset: { action: "delete-no", id: id },
+        "aria-label": "Cancel delete of " + id, text: "No"
+      })
+    ]));
+  }
+
+  return el("article", {
+    class: "card prio-" + task.priority,
+    draggable: "true",
+    dataset: { id: id },
+    "aria-label": "Task " + id + ": " + task.title
+  }, parts);
 }
 
 function renderBoard() {
@@ -1107,30 +1302,43 @@ function renderBoard() {
   const visible = applyFilters(state.tasks);
   const filtered = hasActiveFilters();
 
-  board.innerHTML = COLUMNS.map(function (column) {
+  const columns = COLUMNS.map(function (column) {
     const cards = visible.filter(function (task) { return task.status === column.id; });
     const total = state.tasks.filter(function (task) { return task.status === column.id; }).length;
     const countLabel = filtered ? cards.length + " / " + total : String(cards.length);
 
     const body = cards.length
-      ? cards.map(renderCard).join("")
-      : '<p class="empty-col">' +
-          (filtered ? "No tasks match the current filters." : "No tasks in this column.") +
-        "</p>";
+      ? cards.map(renderCard)
+      : [el("p", {
+          class: "empty-col",
+          text: filtered ? "No tasks match the current filters." : "No tasks in this column."
+        })];
 
-    return '<section class="column" data-column="' + escapeHtml(column.id) +
-        '" aria-label="' + escapeHtml(column.id) + ' column">' +
-        '<div class="column-header">' +
-          '<div class="col-title-row">' +
-            "<h2>" + escapeHtml(column.id) + "</h2>" +
-            '<span class="count-badge" title="Tasks shown in this column">' +
-              escapeHtml(countLabel) + "</span>" +
-          "</div>" +
-          '<p class="col-hint">' + escapeHtml(column.hint) + "</p>" +
-        "</div>" +
-        '<div class="column-body">' + body + "</div>" +
-      "</section>";
-  }).join("");
+    const section = el("section", {
+      class: "column",
+      dataset: { column: column.id },
+      "aria-label": column.id + " column"
+    }, [
+      el("div", { class: "column-header" }, [
+        el("div", { class: "col-title-row" }, [
+          el("h2", { text: column.id }),
+          el("span", {
+            class: "count-badge",
+            title: "Tasks shown in this column",
+            text: countLabel
+          })
+        ]),
+        el("p", { class: "col-hint", text: column.hint })
+      ]),
+      el("div", { class: "column-body" }, body)
+    ]);
+
+    /* Drives the lane accent bar and the swatch beside the heading. */
+    section.style.setProperty("--col-accent", column.accent);
+    return section;
+  });
+
+  replaceChildren(board, columns);
 
   renderSummary();
   renderFilterStatus();
@@ -1153,12 +1361,12 @@ function renderSummary() {
   const overdueCount = state.tasks.filter(isOverdue).length;
   items.push({ label: "Overdue", value: overdueCount, alert: overdueCount > 0 });
 
-  strip.innerHTML = items.map(function (item) {
-    return "<li" + (item.alert ? ' class="is-alert"' : "") + ">" +
-      '<span class="s-label">' + escapeHtml(item.label) + "</span>" +
-      '<span class="s-value">' + item.value + "</span>" +
-    "</li>";
-  }).join("");
+  replaceChildren(strip, items.map(function (item) {
+    return el("li", { class: item.alert ? "is-alert" : null }, [
+      el("span", { class: "s-label", text: item.label }),
+      el("span", { class: "s-value", text: String(item.value) })
+    ]);
+  }));
 }
 
 function renderFilterStatus() {
@@ -1248,6 +1456,12 @@ function showToast(title, message, variant) {
 async function notifyNewTask(task) {
   const res = await fetch(FORMSUBMIT_ENDPOINT, {
     method: "POST",
+    /* Nothing ambient rides along with the request: no cookies, and no
+       referrer identifying the board this came from. connect-src in the CSP
+       above independently pins the destination to formsubmit.co. */
+    credentials: "omit",
+    referrerPolicy: "no-referrer",
+    mode: "cors",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({
       _subject: "[UOB IT PMO] New task " + task.id + ": " + task.title,
@@ -1274,11 +1488,11 @@ async function notifyNewTask(task) {
    ============================================================ */
 function fillSelect(selectId, options, selectedValue) {
   const select = document.getElementById(selectId);
-  select.innerHTML = options.map(function (value) {
-    return '<option value="' + escapeHtml(value) + '"' +
-      (value === selectedValue ? " selected" : "") + ">" +
-      escapeHtml(value) + "</option>";
-  }).join("");
+  replaceChildren(select, options.map(function (value) {
+    const option = el("option", { value: value, text: value });
+    if (value === selectedValue) option.selected = true;
+    return option;
+  }));
 }
 
 function populateFormSelects() {
@@ -1370,8 +1584,12 @@ function validateForm() {
     fail("category", "categoryError", "Choose a category.");
   }
 
+  /* maxlength caps typing, but not a paste on every browser, and it is a
+     client-side attribute either way — so the bound is re-checked here. */
   if (!values.assignee) {
     fail("assignee", "assigneeError", "Assignee is required.");
+  } else if (values.assignee.length > 60) {
+    fail("assignee", "assigneeError", "Assignee must be 60 characters or fewer.");
   }
 
   if (PRIORITIES.indexOf(values.priority) === -1) {
